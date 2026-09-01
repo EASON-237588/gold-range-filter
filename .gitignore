@@ -1,0 +1,12 @@
+# 產物與備份
+deploy/
+dist/
+shots/
+_versions/
+_samples_backup/
+*.zip
+
+# 系統
+.DS_Store
+Thumbs.db
+desktop.ini

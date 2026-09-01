@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>黃金 Range Filter 即時儀表板</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2331; --line:#2b3444;
+    --txt:#e6edf3; --dim:#8b98a9; --dim2:#5f6b7d;
+    /* 台股慣例：上漲紅、下跌綠 */
+    --up:#ef5350; --down:#26a69a; --mid:#78909c;
+    --gold:#e5b53c; --accent:#58a6ff;
+    --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--txt); min-height:100vh;
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    font-size:14px; line-height:1.55; padding:18px;
+  }
+  .wrap{max-width:1440px;margin:0 auto}
+
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  header h1{font-size:19px;font-weight:700;letter-spacing:.5px}
+  header h1 .g{color:var(--gold)}
+  .srcinfo{font-size:12px;color:var(--dim2)}
+  .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--dim2);margin-right:5px;vertical-align:middle}
+  .status-dot.live{background:var(--up);box-shadow:0 0 7px var(--up)}
+  .status-dot.err{background:var(--down)}
+
+  .toolbar{
+    display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:10px 13px;margin-bottom:14px;
+  }
+  .toolbar label{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  select,input[type=number]{
+    background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:5px;padding:5px 8px;font-size:13px;font-family:var(--mono);
+  }
+  input[type=number]{width:72px}
+  select:focus,input:focus{outline:1px solid var(--accent);border-color:var(--accent)}
+  button{
+    background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:5px;padding:6px 13px;font-size:13px;cursor:pointer;font-family:inherit;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#0d1117;font-weight:600}
+  button.primary:hover{opacity:.87;color:#0d1117}
+  .chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);cursor:pointer;user-select:none}
+  .chk input{accent-color:var(--accent);cursor:pointer}
+  .sep{width:1px;height:22px;background:var(--line)}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:11px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .card .k{font-size:11px;color:var(--dim);letter-spacing:.6px;margin-bottom:5px}
+  .card .v{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1.15}
+  .card .s{font-size:11px;color:var(--dim2);margin-top:4px;font-family:var(--mono)}
+  .up{color:var(--up)} .down{color:var(--down)} .mid{color:var(--mid)} .gold{color:var(--gold)}
+
+  .card.signal{border-width:1px}
+  .card.signal.long{border-color:var(--up);background:linear-gradient(180deg,rgba(239,83,80,.13),transparent)}
+  .card.signal.short{border-color:var(--down);background:linear-gradient(180deg,rgba(38,166,154,.13),transparent)}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 15px;margin-bottom:14px}
+  .panel h2{font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.7px;margin-bottom:10px;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .panel h2 .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim2)}
+
+  #chartBox{position:relative;width:100%;height:420px}
+  canvas{display:block;width:100%;height:100%;border-radius:5px}
+  #tip{
+    position:absolute;pointer-events:none;display:none;z-index:5;
+    background:rgba(13,17,23,.95);border:1px solid var(--line);border-radius:5px;
+    padding:7px 10px;font-size:11.5px;font-family:var(--mono);white-space:pre;line-height:1.65;
+  }
+  .legend{display:flex;gap:15px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:9px}
+  .legend i{display:inline-block;width:15px;height:2.5px;vertical-align:middle;margin-right:5px;border-radius:2px}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:980px){.cols{grid-template-columns:1fr}}
+
+  .tblwrap{overflow-x:auto;max-height:330px;overflow-y:auto}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;font-family:var(--mono)}
+  th{position:sticky;top:0;background:var(--panel);text-align:left;color:var(--dim);
+     font-weight:500;font-size:11px;letter-spacing:.5px;padding:7px 9px;border-bottom:1px solid var(--line);z-index:2}
+  td{padding:6px 9px;border-bottom:1px solid rgba(43,52,68,.55)}
+  tbody tr:hover{background:rgba(88,166,255,.06)}
+  .pill{padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600}
+  .pill.long{background:rgba(239,83,80,.18);color:var(--up)}
+  .pill.short{background:rgba(38,166,154,.18);color:var(--down)}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px}
+  .stat{background:var(--panel2);border-radius:6px;padding:9px 11px}
+  .stat .k{font-size:11px;color:var(--dim);margin-bottom:3px}
+  .stat .v{font-size:16px;font-weight:700;font-family:var(--mono)}
+
+  .notes{font-size:12.5px;color:var(--dim);line-height:1.85}
+  .notes b{color:var(--txt)}
+  .notes code{font-family:var(--mono);background:var(--panel2);padding:1px 5px;border-radius:3px;font-size:11.5px;color:var(--gold)}
+  .notes li{margin-left:17px;margin-bottom:5px}
+  .warn{border-left:2px solid var(--gold);padding-left:11px;margin:9px 0}
+
+  footer{color:var(--dim2);font-size:11.5px;text-align:center;margin-top:20px;line-height:1.8}
+  .err{background:rgba(239,83,80,.1);border:1px solid var(--down);color:#ffb4b2;
+       padding:10px 13px;border-radius:6px;margin-bottom:13px;font-size:13px;display:none}
+
+  /* ---- 可收合區塊 ---- */
+  .fold{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+        margin-bottom:14px;overflow:hidden}
+  .fold>summary{
+    list-style:none;cursor:pointer;padding:12px 15px;user-select:none;
+    font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.7px;
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  }
+  .fold>summary::-webkit-details-marker{display:none}
+  .fold>summary::before{content:"▸";color:var(--accent);font-size:10px;line-height:1}
+  .fold[open]>summary::before{content:"▾"}
+  .fold>summary:hover{color:var(--txt)}
+  .fold>summary .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;
+                     border:1px solid var(--line);color:var(--dim2);letter-spacing:0}
+  .foldbody{padding:0 15px 14px}
+  .fold .toolbar{margin:0;border:0;background:transparent;padding:0}
+
+  /* ---- 手機版面 ---- */
+  @media(max-width:640px){
+    body{padding:9px;font-size:13px}
+    header{gap:6px;margin-bottom:11px}
+    header h1{font-size:16px}
+    .srcinfo{font-size:11px;width:100%}
+
+    .grid{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+    .card{padding:9px 10px}
+    .card .k{font-size:10px;margin-bottom:3px}
+    .card .v{font-size:17px}
+    .card .s{font-size:10px;line-height:1.5}
+
+    .fold,.panel{margin-bottom:10px}
+    .fold>summary{padding:11px 12px;font-size:12.5px}
+    .foldbody{padding:0 12px 12px}
+    .panel{padding:11px 12px}
+    .panel h2{font-size:12px}
+
+    /* 參數在手機上排成兩欄，欄位撐滿 */
+    .fold .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px}
+    .toolbar label{flex-direction:column;align-items:stretch;gap:3px;font-size:11px}
+    .toolbar label.chk{flex-direction:row;align-items:center;gap:6px}
+    .toolbar select,.toolbar input[type=number]{width:100%;padding:7px 8px;font-size:14px}
+    .toolbar .sep{display:none}
+    .toolbar button{width:100%;padding:9px 10px;font-size:13px}
+
+    #chartBox{height:270px}
+    .legend{gap:9px;font-size:10px}
+    .stats{grid-template-columns:repeat(2,1fr);gap:7px}
+    .stat{padding:8px 9px}
+    .stat .v{font-size:14px}
+    .tblwrap{max-height:260px}
+    table{font-size:11.5px}
+    th,td{padding:5px 6px}
+    .notes{font-size:12px;line-height:1.75}
+    footer{font-size:10.5px}
+  }
+  /* 只有極窄機種才降為單欄；375/390 的 iPhone 仍維持兩欄 */
+  @media(max-width:340px){
+    .grid{grid-template-columns:1fr}
+    .fold .toolbar{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><span class="g">◆</span> 黃金 Range Filter 即時儀表板</h1>
+  <span class="srcinfo"><span class="status-dot" id="dot"></span><span id="srcTxt">初始化中…</span></span>
+</header>
+
+<div class="err" id="errBox"></div>
+
+<details class="fold" id="foldParams">
+  <summary>參數設定 <span class="tag" id="paramTag">—</span></summary>
+  <div class="foldbody">
+  <div class="toolbar">
+  <label>資料源
+    <select id="feed">
+      <option value="PAXGUSDT">PAXG/USDT（實體黃金代幣・有量）</option>
+      <option value="XAUTUSDT">XAUT/USDT（Tether Gold・有量）</option>
+    </select>
+  </label>
+  <label>週期
+    <select id="tf">
+      <option value="1m">1 分</option>
+      <option value="2m">2 分 ✦</option>
+      <option value="3m">3 分</option>
+      <option value="5m">5 分</option>
+      <option value="11m" selected>11 分 ✦</option>
+      <option value="15m">15 分</option>
+      <option value="30m">30 分</option>
+      <option value="1h">1 小時</option>
+      <option value="2h">2 小時</option>
+      <option value="4h">4 小時</option>
+      <option value="1d">日線</option>
+    </select>
+  </label>
+  <label>根數
+    <select id="bars">
+      <option value="500">500</option>
+      <option value="1000">1000</option>
+      <option value="1500">1500</option>
+      <option value="2000">2000</option>
+      <option value="2500">2500</option>
+      <option value="3000">3000</option>
+      <option value="5000">5000</option>
+      <option value="10000">10000</option>
+      <option value="15000">15000</option>
+      <option value="20000" selected>20000</option>
+    </select>
+  </label>
+  <div class="sep"></div>
+  <label>源
+    <select id="srcSel">
+      <option value="hl2" selected>(H+L)/2</option>
+      <option value="close">收盤價</option>
+      <option value="hlc3">(H+L+C)/3</option>
+    </select>
+  </label>
+  <label>取樣週期 <input type="number" id="per" value="300" min="1"></label>
+  <label>範圍乘數 <input type="number" id="mult" value="23" min="0.1" step="0.5"></label>
+  <div class="sep"></div>
+  <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
+    <input type="number" id="cost" value="0.05" step="0.01" min="0"></label>
+  <div class="sep"></div>
+  <label class="chk" title="剔除黃金休市時段的K線，讓週末跳空真實出現，與 TVC:GOLD／XAUUSD 對齊">
+    <input type="checkbox" id="session" checked> 黃金交易時段</label>
+  <div class="sep"></div>
+  <label class="chk" title="20000 根每次重抓約 330 個請求，開啟前請留意"><input type="checkbox" id="auto"> 自動更新</label>
+  <button class="primary" id="refresh">立即更新</button>
+  <button id="preset">預設值</button>
+  <button id="orig">回到你的參數</button>
+  </div>
+  </div>
+</details>
+
+<div class="grid" id="cards"></div>
+
+<div class="panel">
+  <h2>價格 × Range Filter 通道 <span class="tag" id="chartTag">—</span></h2>
+  <div id="chartBox"><canvas id="cv"></canvas><div id="tip"></div></div>
+  <div class="legend">
+    <span><i style="background:#c9d1d9"></i>價格</span>
+    <span><i style="background:var(--up)"></i>過濾線（上行）</span>
+    <span><i style="background:var(--down)"></i>過濾線（下行）</span>
+    <span><i style="background:var(--mid);opacity:.6"></i>上下軌</span>
+    <span><span class="up">▲</span> 買進訊號　<span class="down">▼</span> 賣出訊號</span>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>訊號績效統計 <span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span></h2>
+  <div class="stats" id="stats"></div>
+  <div style="margin-top:12px">
+    <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
+    <div style="height:150px"><canvas id="eq"></canvas></div>
+  </div>
+</div>
+
+<details class="fold" id="foldSignals">
+  <summary>訊號歷史 <span class="tag" id="sigTag">—</span></summary>
+  <div class="foldbody">
+    <div class="tblwrap">
+      <table><thead><tr>
+        <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
+      </tr></thead><tbody id="sigBody"></tbody></table>
+    </div>
+  </div>
+</details>
+
+<details class="fold" id="foldNotes">
+  <summary>原始策略的四個問題 <span class="tag">本儀表板已對應處理・暖機區訊號自動剔除</span></summary>
+  <div class="foldbody">
+  <div class="notes">
+    <div class="warn"><b>1. ATR 過濾在原始碼裡完全沒作用。</b>
+      原碼是 <code>atr_lower = close - atr*mult</code>，然後判斷 <code>close &gt; atr_lower</code>。
+      因為 ATR 恆為正，這個條件<b>永遠成立</b>；空方的 <code>close &lt; atr_upper</code> 同理。
+      也就是說「使用ATR過濾」這個開關勾或不勾，訊號一模一樣。
+      本頁已直接移除這個無效開關。</div>
+
+    <div class="warn"><b>2. 移動止損在你目前的設定下不會執行。</b>
+      你把「使用止損/止盈」關掉了，但原碼把整段 <code>strategy.exit(...)</code> 包在 <code>if use_sl_tp</code> 裡面，
+      移動止損是 <code>strategy.exit</code> 的一個參數。所以「使用移動止損 ✓ / 偏移 0.8%」目前是空設定，
+      進場後只能等反向訊號才出場。<b>本頁依你的要求已完全移除停損／停利／移動止損</b>，
+      統計即為「純訊號進出」的原貌——這也正好等於你 TradingView 目前設定的實際行為。<br>
+      （實測補充：止損 2.1% / 止盈 2.5% 在 15 分黃金上 29 筆交易一次都沒觸發過，
+      單筆持倉根本走不到 2%，所以就算修好那個 bug，這組數字在短週期上仍等於沒設。）</div>
+
+    <div class="warn"><b>3. 交易量過濾在 TVC:GOLD 上會吃掉訊號。</b>
+      <code>TVC:GOLD</code> 是現貨報價指數，多數 K 線沒有成交量（0 或 na），
+      <code>volume &gt; volume_ma*0.8</code> 在 0 &gt; 0 時恆為 false。
+      實測後發現它不會刪除訊號、只會延後訊號，且開啟後勝率由 56.3% 掉到 50.0%，因此本頁已移除。</div>
+
+    <div class="warn"><b>4. 範圍乘數 23 讓訊號極度稀少。</b>
+      乘數 23 本身沒問題——三輪掃描的最佳乘數都落在 19~24。真正的問題是取樣週期 100 太短，
+      改成 300 後平均波幅由 2.86% 升到 4.04%、勝率由 45.0% 升到 56.3%。</div>
+
+    <p style="margin-top:11px;color:var(--dim2)">
+      另註：TradingView 屬性頁的「預設訂單大小 1000 數量」搭配 1 萬本金，代表約 440 萬美元的部位，
+      必須靠 Infinity 槓桿才跑得動，該回測的絕對損益數字不具參考性。本頁統計一律用「每筆固定名目金額」計算報酬率，避開這個失真。
+    </p>
+  </div>
+  </div>
+</details>
+
+<footer>
+  配色採台股慣例：<span class="up">上漲／多方為紅</span>、<span class="down">下跌／空方為綠</span>。
+  週期標示 <b>✦</b> 者（2 分、11 分）為交易所未原生提供，由 1 分 K 線在前端聚合而成，時間桶以 Unix epoch 對齊，載入較慢。<br>
+  Range Filter 演算法逐行對應原始 Pine Script v5（EMA / 遞迴過濾線 / upward-downward 計數 / CondIni 狀態機皆等價實作）。<br>
+  黃金代幣價格與 XAUUSD 現貨存在小幅溢價與價差，適合判斷方向與型態，不宜當作報價來源。本頁僅供分析研究，不構成投資建議。
+</footer>
+
+</div>
+
+<script>
+"use strict";
+
+/* ============ 工具 ============ */
+const $ = id => document.getElementById(id);
+const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
+
+function tsText(ms){
+  const d = new Date(ms), p = n => String(n).padStart(2,"0");
+  return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/* ============ Pine 等價指標函式 ============ */
+// ta.ema：alpha = 2/(n+1)，以第一筆有效值起算
+function ema(src, len){
+  const a = 2/(len+1), out = new Array(src.length);
+  let prev = null;
+  for(let i=0;i<src.length;i++){
+    const v = src[i];
+    if(v==null || !isFinite(v)){ out[i]=prev; continue; }
+    prev = (prev===null) ? v : a*v + (1-a)*prev;
+    out[i] = prev;
+  }
+  return out;
+}
+// ta.rma（Wilder 平滑，ta.atr 內部使用）
+function rma(src, len){
+  const a = 1/len, out = new Array(src.length);
+  let prev = null;
+  for(let i=0;i<src.length;i++){
+    const v = src[i];
+    if(v==null || !isFinite(v)){ out[i]=prev; continue; }
+    prev = (prev===null) ? v : a*v + (1-a)*prev;
+    out[i] = prev;
+  }
+  return out;
+}
+function sma(src, len){
+  const out = new Array(src.length); let sum = 0;
+  for(let i=0;i<src.length;i++){
+    sum += src[i];
+    if(i>=len) sum -= src[i-len];
+    out[i] = i>=len-1 ? sum/len : null;
+  }
+  return out;
+}
+// ta.atr
+function atrCalc(bars, len){
+  const tr = bars.map((b,i)=>{
+    if(i===0) return b.h - b.l;
+    const pc = bars[i-1].c;
+    return Math.max(b.h-b.l, Math.abs(b.h-pc), Math.abs(b.l-pc));
+  });
+  return rma(tr, len);
+}
+
+// smoothrng(x,t,m)
+function smoothrng(x, t, m){
+  const diff = x.map((v,i)=> i===0 ? 0 : Math.abs(v - x[i-1]));
+  const avrng = ema(diff, t);
+  const wper = t*2 - 1;
+  return ema(avrng, wper).map(v => (v==null?null:v*m));
+}
+
+// rngfilt(x,r) —— 對應 Pine 的遞迴，bar0 的 nz(rngfilt[1]) 視為 0
+function rngfilt(x, r){
+  const out = new Array(x.length);
+  let prev = 0;
+  for(let i=0;i<x.length;i++){
+    const xi = x[i], ri = (r[i]==null?0:r[i]);
+    let f;
+    if(xi > prev) f = (xi - ri < prev) ? prev : xi - ri;
+    else          f = (xi + ri > prev) ? prev : xi + ri;
+    out[i] = f; prev = f;
+  }
+  return out;
+}
+
+/* ============ 主計算 ============ */
+function compute(bars, P){
+  const n = bars.length;
+  const src = bars.map(b =>
+    P.srcMode==="close" ? b.c :
+    P.srcMode==="hlc3"  ? (b.h+b.l+b.c)/3 : (b.h+b.l)/2
+  );
+
+  const smrng = smoothrng(src, P.per, P.mult);
+  const filt  = rngfilt(src, smrng);
+
+  const upward = new Array(n).fill(0), downward = new Array(n).fill(0);
+  for(let i=0;i<n;i++){
+    const pu = i? upward[i-1] : 0, pd = i? downward[i-1] : 0;
+    const pf = i? filt[i-1] : filt[0];
+    upward[i]   = filt[i] > pf ? pu+1 : filt[i] < pf ? 0 : pu;
+    downward[i] = filt[i] < pf ? pd+1 : filt[i] > pf ? 0 : pd;
+  }
+
+  const hband = filt.map((f,i)=> f + (smrng[i]||0));
+  const lband = filt.map((f,i)=> f - (smrng[i]||0));
+
+  const atr    = atrCalc(bars, P.atrLen);
+  const atrAvg = sma(atr.map(v=>v==null?0:v), P.atrLen*3);
+  const volMA  = sma(bars.map(b=>b.v), P.volLen);
+
+  const sig = new Array(n).fill(0);      // 1=買 -1=賣
+  let condIni = 0;
+  const rows = [];
+
+  for(let i=0;i<n;i++){
+    // 原碼的多空條件（含 src 與前值相等時不成立的原始行為）
+    const rose = i>0 && src[i] > src[i-1];
+    const fell = i>0 && src[i] < src[i-1];
+    const longCond  = src[i] > filt[i] && (rose || fell) && upward[i] > 0;
+    const shortCond = src[i] < filt[i] && (rose || fell) && downward[i] > 0;
+
+    // 修正版波動度過濾：ATR 要高於自身均值
+    const volaOK = !P.useAtr2 || (atr[i]!=null && atrAvg[i]!=null && atr[i] > atrAvg[i]);
+    // 交易量過濾（原碼邏輯，資料源有真實量才有意義）
+    const volOK  = !P.useVol || (volMA[i]!=null && bars[i].v > volMA[i]*0.8);
+
+    const L = longCond && volaOK && volOK;
+    const S = shortCond && volaOK && volOK;
+
+    const prevIni = condIni;
+    if(L) condIni = 1; else if(S) condIni = -1;
+
+    if(L && prevIni === -1){ sig[i] = 1;  rows.push({i,dir:1}); }
+    if(S && prevIni === 1){  sig[i] = -1; rows.push({i,dir:-1}); }
+  }
+
+  // 暖機區（內層 EMA 尚未收斂，通道偏窄）的訊號一律丟棄，不進圖表也不進統計
+  const warm = Math.min(6 * P.per, n);
+  const dropped = rows.filter(r => r.i < warm).length;
+  for(let i=0; i<warm; i++) sig[i] = 0;
+  const keptRows = rows.filter(r => r.i >= warm);
+
+  return {src, smrng, filt, upward, downward, hband, lband, atr, atrAvg, volMA,
+          sig, rows: keptRows, warm, dropped, rawCount: rows.length};
+}
+
+/* ============ 回測（純訊號進出，無止損/止盈/移動止損） ============ */
+function backtest(bars, R, P){
+  const trades = [];
+  let pos = null;
+
+  for(let i=0;i<bars.length;i++){
+    const b = bars[i];
+
+    if(pos){
+      let exit = null, why = "";
+      const dir = pos.dir;
+      pos.peak = dir>0 ? Math.max(pos.peak, b.h) : Math.min(pos.peak, b.l);
+
+      if(R.sig[i] !== 0 && R.sig[i] !== dir){ exit = b.c; why="反向訊號"; }
+
+      if(exit!=null){
+        const gross = dir>0 ? (exit/pos.entry-1)*100 : (pos.entry/exit-1)*100;
+        const ret = gross - 2*(P.cost||0);   // 進出各扣一次單趟成本
+        trades.push({...pos, exit, why, gross, ret, exitIdx:i, held:i-pos.idx});
+        pos = null;
+      }
+    }
+
+    // 只做多模式：空方訊號僅用於平多（上面已處理），不建立空單
+    if(!pos && R.sig[i] !== 0 && !(P.longOnly && R.sig[i] < 0)){
+      pos = {dir:R.sig[i], entry:b.c, peak:b.c, idx:i, t:b.t};
+    }
+  }
+
+  const closed = trades;
+  const wins = closed.filter(t=>t.ret>0), losses = closed.filter(t=>t.ret<=0);
+  const gp = wins.reduce((s,t)=>s+t.ret,0);
+  const gl = Math.abs(losses.reduce((s,t)=>s+t.ret,0));
+
+  let eq = 0, peak = 0, mdd = 0;
+  const curve = [0];
+  for(const t of closed){
+    eq += t.ret; curve.push(eq);
+    peak = Math.max(peak, eq);
+    mdd = Math.max(mdd, peak - eq);
+  }
+
+  const gross = closed.reduce((s,t)=>s+t.gross,0);
+  const costDrag = gross - eq;
+  return {
+    trades: closed, open: pos, curve,
+    total: closed.length,
+    winRate: closed.length ? wins.length/closed.length*100 : null,
+    avgWin: wins.length ? gp/wins.length : null,
+    avgLoss: losses.length ? -gl/losses.length : null,
+    pf: gl>0 ? gp/gl : (gp>0 ? Infinity : null),
+    net: eq, gross, costDrag, mdd,
+    avgHeld: closed.length ? closed.reduce((s,t)=>s+t.held,0)/closed.length : null,
+    avgSwing: closed.length ? closed.reduce((s,t)=>s+Math.abs(t.gross),0)/closed.length : null
+  };
+}
+
+/* ============ 取資料 ============ */
+let BARS = [], RAW = [], SYMBOL = "", TF = "";
+
+// 黃金現貨交易時段（UTC）：週日 22:00 開盤 → 週五 21:00 收盤，每日 21:00-22:00 休息。
+// PAXG 是 24/7 交易，不剔除的話就沒有週末跳空，smoothrng 會偏小、通道偏窄、訊號暴增，
+// 與 TVC:GOLD / XAUUSD 對不起來。
+function goldOpen(t){
+  const d = new Date(t), day = d.getUTCDay(), h = d.getUTCHours();
+  if(day === 6) return false;               // 週六全休
+  if(day === 0 && h < 22) return false;     // 週日 22:00 前未開盤
+  if(day === 5 && h >= 21) return false;    // 週五 21:00 後收盤
+  if(h === 21) return false;                // 每日休息一小時
+  return true;
+}
+function applySession(){
+  BARS = $("session").checked ? RAW.filter(b => goldOpen(b.t)) : RAW.slice();
+}
+
+// Binance 原生支援的區間；2m 與 11m 不在其中，需由 1m 聚合
+const NATIVE_TF = new Set(["1m","3m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d"]);
+const CUSTOM_TF = {"2m":2, "11m":11};
+
+// 單次請求上限 1000 根，超過就用 endTime 往回分頁
+async function fetchRaw(sym, interval, limit, onProgress){
+  const out = [];
+  let endTime = null, guard = 0;
+  while(out.length < limit && guard++ < 450){
+    const need = Math.min(1000, limit - out.length);
+    let url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${need}`;
+    if(endTime !== null) url += `&endTime=${endTime}`;
+    const r = await fetch(url, {cache:"no-store"});
+    if(!r.ok) throw new Error(`Binance API ${r.status}`);
+    const raw = await r.json();
+    if(!Array.isArray(raw) || !raw.length) break;
+    const chunk = raw.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+    out.unshift(...chunk);
+    endTime = chunk[0].t - 1;
+    if(onProgress) onProgress(out.length, limit);
+    if(chunk.length < need) break;   // 已無更早的歷史
+  }
+  if(!out.length) throw new Error("回傳空資料");
+  return out;
+}
+
+// 由 1 分 K 線合成任意分鐘週期（時間桶以 Unix epoch 對齊）
+function aggregate(bars1m, minutes){
+  const ms = minutes * 60000, out = [];
+  let cur = null;
+  for(const b of bars1m){
+    const bucket = Math.floor(b.t / ms) * ms;
+    if(!cur || cur.t !== bucket){
+      if(cur) out.push(cur);
+      cur = {t:bucket, o:b.o, h:b.h, l:b.l, c:b.c, v:b.v};
+    }else{
+      cur.h = Math.max(cur.h, b.h);
+      cur.l = Math.min(cur.l, b.l);
+      cur.c = b.c;
+      cur.v += b.v;
+    }
+  }
+  if(cur) out.push(cur);
+  return out;
+}
+
+async function fetchBars(sym, tf, limit, onProgress){
+  if(NATIVE_TF.has(tf)) return await fetchRaw(sym, tf, limit, onProgress);
+
+  const mins = CUSTOM_TF[tf];
+  if(!mins) throw new Error(`不支援的週期 ${tf}`);
+  // 多抓一點 1m 資料，確保聚合後根數足夠（首尾桶可能不完整）
+  const need1m = limit * mins + mins * 2;
+  const raw1m = await fetchRaw(sym, "1m", need1m, onProgress);
+  const agg = aggregate(raw1m, mins);
+  return agg.slice(-limit);
+}
+
+async function fetchSpot(){
+  try{
+    const r = await fetch("https://api.gold-api.com/price/XAU", {cache:"no-store"});
+    if(!r.ok) return null;
+    const j = await r.json();
+    return typeof j.price === "number" ? j.price : null;
+  }catch(e){ return null; }
+}
+
+/* ============ 讀參數 ============ */
+function readParams(){
+  return {
+    srcMode: $("srcSel").value,
+    per: Math.max(1, +$("per").value || 100),
+    mult: Math.max(0.1, +$("mult").value || 23),
+    atrLen: 12, atrMult: 1.5, volLen: 20,
+    useVol: false, useAtr2: false, longOnly: false,
+    cost: Math.max(0, +$("cost").value || 0)
+  };
+}
+
+/* ============ 卡片 ============ */
+function renderCards(bars, R, BT, spot, P){
+  const n = bars.length - 1;
+  const last = bars[n], prev = bars[n-1];
+  const chg = (last.c/prev.c - 1) * 100;
+  const dirUp = R.upward[n] > 0, dirDn = R.downward[n] > 0;
+  const dirTxt = dirUp ? "多方" : dirDn ? "空方" : "中性";
+  const dirCls = dirUp ? "up" : dirDn ? "down" : "mid";
+
+  // 距離上下軌
+  const toH = (R.hband[n]/last.c - 1) * 100;
+  const toL = (R.lband[n]/last.c - 1) * 100;
+
+  // 最近訊號
+  const lastSig = R.rows.length ? R.rows[R.rows.length-1] : null;
+  let sigCard = `<div class="card"><div class="k">最近訊號</div><div class="v mid">無</div>
+     <div class="s">目前參數下區間內未觸發</div></div>`;
+  if(lastSig){
+    const sb = bars[lastSig.i];
+    const ago = n - lastSig.i;
+    const since = (last.c/sb.c - 1) * 100 * lastSig.dir;
+    sigCard = `<div class="card signal ${lastSig.dir>0?"long":"short"}">
+      <div class="k">最近訊號</div>
+      <div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>
+      <div class="s">${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}<br>
+        訊號後至今 <span class="${since>=0?"up":"down"}">${pct(since)}</span></div></div>`;
+  }
+
+  const held = BT.open;
+  const heldCard = held ? `<div class="card signal ${held.dir>0?"long":"short"}">
+      <div class="k">持倉狀態</div>
+      <div class="v ${held.dir>0?"up":"down"}">${held.dir>0?"多單":"空單"}</div>
+      <div class="s">進場 ${fmt(held.entry)}　浮動 <span class="${
+        ((held.dir>0?(last.c/held.entry-1):(held.entry/last.c-1))*100)>=0?"up":"down"
+      }">${pct((held.dir>0?(last.c/held.entry-1):(held.entry/last.c-1))*100)}</span></div></div>`
+    : `<div class="card"><div class="k">持倉狀態</div><div class="v mid">空手</div>
+      <div class="s">等待下一個訊號</div></div>`;
+
+  $("cards").innerHTML = `
+    <div class="card">
+      <div class="k">現價（${SYMBOL.replace("USDT","")}）</div>
+      <div class="v ${chg>=0?"up":"down"}">${fmt(last.c)}</div>
+      <div class="s">本根 ${pct(chg)}　${tsText(last.t)}</div>
+    </div>
+    <div class="card">
+      <div class="k">現貨黃金 XAU/USD</div>
+      <div class="v gold">${spot!=null?fmt(spot):"—"}</div>
+      <div class="s">${spot!=null ? "代幣溢價 "+pct((last.c/spot-1)*100) : "報價源暫無回應"}</div>
+    </div>
+    ${sigCard}
+    ${heldCard}`;
+}
+
+/* ============ 訊號表 ============ */
+function renderSignals(bars, R){
+  const n = bars.length - 1;
+  const rows = R.rows.slice().reverse();
+  $("sigTag").textContent = `${R.rows.length} 筆・共 ${bars.length} 根 K 線`;
+  if(!rows.length){
+    $("sigBody").innerHTML = `<tr><td colspan="5" style="color:var(--dim2);padding:16px">
+      目前參數下沒有訊號。範圍乘數越大訊號越稀少——試著把乘數調到 4~8 看看。</td></tr>`;
+    return;
+  }
+  $("sigBody").innerHTML = rows.map(r=>{
+    const b = bars[r.i];
+    const chg = (bars[n].c/b.c - 1) * 100 * r.dir;
+    return `<tr>
+      <td>${tsText(b.t)}</td>
+      <td><span class="pill ${r.dir>0?"long":"short"}">${r.dir>0?"買進":"賣出"}</span></td>
+      <td>${fmt(b.c)}</td>
+      <td style="color:var(--dim)">${fmt(R.filt[r.i])}</td>
+      <td class="${chg>=0?"up":"down"}">${pct(chg)}</td>
+    </tr>`;
+  }).join("");
+}
+
+/* ============ 統計 ============ */
+function tfMinutes(){
+  const m = TF.match(/^(\d+)([mhd])$/);
+  if(!m) return 1;
+  return +m[1] * (m[2]==="h" ? 60 : m[2]==="d" ? 1440 : 1);
+}
+function heldText(bars){
+  if(bars==null) return "—";
+  const h = bars * tfMinutes() / 60;
+  return h >= 48 ? (h/24).toFixed(1)+" 天" : h.toFixed(1)+" 小時";
+}
+
+function renderStats(BT, P){
+  const s = (k,v,cls="",sub="") => `<div class="stat"><div class="k">${k}</div>
+     <div class="v ${cls}">${v}</div>${sub?`<div class="k" style="margin:3px 0 0">${sub}</div>`:""}</div>`;
+  // 成本吃掉毛利的比例——用來判斷這組參數是不是靠過度交易堆出來的
+  const eaten = BT.gross>0 ? BT.costDrag/BT.gross*100 : null;
+  $("stats").innerHTML =
+    s("完成交易", BT.total, "", BT.avgHeld!=null ? "平均持倉 "+heldText(BT.avgHeld) : "") +
+    s("勝率", BT.winRate!=null ? BT.winRate.toFixed(1)+"%" : "—",
+        BT.winRate==null?"":(BT.winRate>=50?"up":"down")) +
+    s("獲利因子", BT.pf==null ? "—" : (BT.pf===Infinity ? "∞" : BT.pf.toFixed(2)),
+        BT.pf==null?"":(BT.pf>=1.5?"up":BT.pf>=1?"":"down")) +
+    s("平均波幅", BT.avgSwing!=null ? BT.avgSwing.toFixed(2)+"%" : "—", "",
+        "單趟成本 "+P.cost+"%") +
+    s("平均獲利", BT.avgWin!=null?pct(BT.avgWin):"—","up") +
+    s("平均虧損", BT.avgLoss!=null?pct(BT.avgLoss):"—","down") +
+    s("毛報酬", pct(BT.gross), BT.gross>=0?"up":"down") +
+    s("成本拖累", BT.total ? "-"+BT.costDrag.toFixed(2)+"%" : "—", "down",
+        eaten!=null ? "吃掉毛利 "+eaten.toFixed(0)+"%" : "") +
+    s("淨報酬", pct(BT.net), BT.net>=0?"up":"down") +
+    s("最大回撤", BT.mdd?("-"+BT.mdd.toFixed(2)+"%"):"—","down");
+}
+
+/* ============ 繪圖 ============ */
+function setupCanvas(cv){
+  const dpr = window.devicePixelRatio || 1;
+  const r = cv.getBoundingClientRect();
+  cv.width = Math.max(1, r.width * dpr);
+  cv.height = Math.max(1, r.height * dpr);
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return {ctx, W:r.width, H:r.height};
+}
+
+let VIEW = null;
+
+function drawChart(bars, R){
+  const cv = $("cv");
+  const {ctx, W, H} = setupCanvas(cv);
+  ctx.clearRect(0,0,W,H);
+
+  const show = bars.length;
+  const s = 0;
+  const PL = 8, PR = 66, PT = 12, PB = 24;
+  const cw = W - PL - PR, ch = H - PT - PB;
+
+  let lo = Infinity, hi = -Infinity;
+  for(let i=s;i<bars.length;i++){
+    lo = Math.min(lo, bars[i].l, R.lband[i]);
+    hi = Math.max(hi, bars[i].h, R.hband[i]);
+  }
+  const pad = (hi-lo)*0.06; lo -= pad; hi += pad;
+
+  const X = i => PL + (i - s) / (show - 1) * cw;
+  const Y = p => PT + (hi - p) / (hi - lo) * ch;
+
+  VIEW = {s, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
+
+  // 格線 + 價格軸
+  ctx.font = "11px ui-monospace,monospace";
+  ctx.textBaseline = "middle";
+  for(let g=0; g<=5; g++){
+    const p = lo + (hi-lo)*g/5, y = Y(p);
+    ctx.strokeStyle = "rgba(43,52,68,.55)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PL,y); ctx.lineTo(W-PR,y); ctx.stroke();
+    ctx.fillStyle = "#5f6b7d";
+    ctx.fillText(p.toLocaleString("en-US",{maximumFractionDigits:1}), W-PR+7, y);
+  }
+  // 時間軸
+  ctx.textBaseline = "top";
+  const step = Math.max(1, Math.floor(show/7));
+  for(let i=s; i<bars.length; i+=step){
+    const x = X(i);
+    ctx.strokeStyle = "rgba(43,52,68,.35)";
+    ctx.beginPath(); ctx.moveTo(x,PT); ctx.lineTo(x,PT+ch); ctx.stroke();
+    ctx.fillStyle = "#5f6b7d"; ctx.textAlign = "center";
+    ctx.fillText(tsText(bars[i].t), x, PT+ch+6);
+  }
+  ctx.textAlign = "left";
+
+  // 通道填色
+  ctx.beginPath();
+  for(let i=s;i<bars.length;i++){ const x=X(i),y=Y(R.hband[i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  for(let i=bars.length-1;i>=s;i--){ ctx.lineTo(X(i), Y(R.lband[i])); }
+  ctx.closePath();
+  ctx.fillStyle = "rgba(120,144,156,.07)"; ctx.fill();
+
+  // 上下軌
+  ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  for(const band of ["hband","lband"]){
+    ctx.beginPath();
+    for(let i=s;i<bars.length;i++){ const x=X(i),y=Y(R[band][i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+    ctx.strokeStyle = "rgba(120,144,156,.5)"; ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 價格線
+  ctx.beginPath();
+  for(let i=s;i<bars.length;i++){ const x=X(i),y=Y(bars[i].c); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  ctx.strokeStyle = "#c9d1d9"; ctx.lineWidth = 1.1; ctx.stroke();
+
+  // 過濾線（依方向分段上色）
+  ctx.lineWidth = 2.2; ctx.lineJoin = "round";
+  for(let i=s+1;i<bars.length;i++){
+    const col = R.upward[i]>0 ? "#ef5350" : R.downward[i]>0 ? "#26a69a" : "#78909c";
+    ctx.beginPath();
+    ctx.moveTo(X(i-1), Y(R.filt[i-1]));
+    ctx.lineTo(X(i), Y(R.filt[i]));
+    ctx.strokeStyle = col; ctx.stroke();
+  }
+
+  // 訊號箭頭
+  for(const r of R.rows){
+    if(r.i < s) continue;
+    const x = X(r.i), b = bars[r.i];
+    const up = r.dir > 0;
+    const y = up ? Y(b.l) + 13 : Y(b.h) - 13;
+    ctx.beginPath();
+    if(up){ ctx.moveTo(x,y-8); ctx.lineTo(x-6,y+3); ctx.lineTo(x+6,y+3); }
+    else  { ctx.moveTo(x,y+8); ctx.lineTo(x-6,y-3); ctx.lineTo(x+6,y-3); }
+    ctx.closePath();
+    ctx.fillStyle = up ? "#ef5350" : "#26a69a"; ctx.fill();
+    ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1; ctx.stroke();
+  }
+}
+
+function drawEquity(BT){
+  const cv = $("eq");
+  const {ctx, W, H} = setupCanvas(cv);
+  ctx.clearRect(0,0,W,H);
+  const c = BT.curve;
+  if(c.length < 2){
+    ctx.fillStyle = "#5f6b7d"; ctx.font = "12px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("交易筆數不足，無法繪製權益曲線", W/2, H/2);
+    ctx.textAlign = "left"; return;
+  }
+  const lo = Math.min(...c, 0), hi = Math.max(...c, 0);
+  const pad = (hi-lo)*0.12 || 1;
+  const X = i => 6 + i/(c.length-1)*(W-12);
+  const Y = v => 8 + (hi+pad - v)/((hi+pad)-(lo-pad))*(H-16);
+
+  ctx.strokeStyle = "rgba(120,144,156,.4)"; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(6,Y(0)); ctx.lineTo(W-6,Y(0)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  c.forEach((v,i)=> i===0 ? ctx.moveTo(X(i),Y(v)) : ctx.lineTo(X(i),Y(v)));
+  const win = c[c.length-1] >= 0;
+  ctx.strokeStyle = win ? "#ef5350" : "#26a69a"; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.lineTo(X(c.length-1), Y(0)); ctx.lineTo(X(0), Y(0)); ctx.closePath();
+  ctx.fillStyle = win ? "rgba(239,83,80,.13)" : "rgba(38,166,154,.13)";
+  ctx.fill();
+}
+
+/* ============ 十字游標 ============ */
+$("cv").addEventListener("mousemove", e=>{
+  if(!VIEW || !BARS.length) return;
+  const r = e.target.getBoundingClientRect();
+  const x = e.clientX - r.left;
+  const {s, show, PL, cw} = VIEW;
+  let i = Math.round(s + (x - PL)/cw*(show-1));
+  i = Math.max(s, Math.min(BARS.length-1, i));
+  const b = BARS[i], R = LASTR;
+  if(!R) return;
+  const tip = $("tip");
+  tip.style.display = "block";
+  tip.textContent =
+    `${tsText(b.t)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
+    `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n` +
+    `量 ${fmt(b.v,1)}`;
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  tip.style.left = Math.min(r.width - tw - 6, Math.max(6, x + 14)) + "px";
+  tip.style.top  = Math.min(r.height - th - 6, Math.max(6, e.clientY - r.top + 12)) + "px";
+});
+$("cv").addEventListener("mouseleave", ()=> $("tip").style.display = "none");
+
+/* ============ 主流程 ============ */
+let LASTR = null, timer = null, busy = false;
+
+function setStatus(cls, txt){
+  $("dot").className = "status-dot " + cls;
+  $("srcTxt").textContent = txt;
+}
+function showErr(msg){
+  const e = $("errBox");
+  if(!msg){ e.style.display = "none"; return; }
+  e.style.display = "block";
+  e.innerHTML = msg;
+}
+
+async function run(refetch = true){
+  if(busy) return;
+  busy = true;
+  try{
+    const P = readParams();
+    SYMBOL = $("feed").value;
+    TF = $("tf").value;
+
+    if(refetch || !RAW.length){
+      const limit = +$("bars").value || 500;
+      const synth = !NATIVE_TF.has(TF);
+      // 時段過濾會砍掉約 32%，所以多抓一些，確保過濾後根數足夠
+      const need = $("session").checked ? Math.round(limit * 1.5) : limit;
+      setStatus("", synth ? `合成 ${TF} K 線中（需抓 ${(need*CUSTOM_TF[TF]).toLocaleString()} 根 1 分線）…` : "更新中…");
+      RAW = await fetchBars(SYMBOL, TF, need, (got, want)=>{
+        if(want > 1000) setStatus("", `下載中 ${Math.round(got/want*100)}%（${got.toLocaleString()} / ${want.toLocaleString()}）`);
+      });
+      showErr("");
+    }
+    applySession();
+    const want = +$("bars").value || 500;
+    if(BARS.length > want) BARS = BARS.slice(-want);
+
+    const R  = compute(BARS, P);
+    LASTR = R;
+    const BT = backtest(BARS, R, P);
+    const spot = refetch ? await fetchSpot() : LASTSPOT;
+    LASTSPOT = spot;
+
+    renderCards(BARS, R, BT, spot, P);
+    renderSignals(BARS, R);
+    renderStats(BT, P);
+    $("statTag").textContent = "純訊號進出、無停損停利・單趟成本 "+P.cost+"%";
+    // 收合時也要看得到目前設定
+    const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[P.srcMode];
+    $("paramTag").textContent =
+      `${$("tf").selectedOptions[0].text.replace(" ✦","")}・${(+$("bars").value).toLocaleString()} 根・`
+      + `${srcTxt}・週期 ${P.per}・乘數 ${P.mult}・成本 ${P.cost}%`
+      + ($("session").checked ? "・剔除休市" : "・24/7");
+    drawChart(BARS, R);
+    drawEquity(BT);
+
+    $("chartTag").textContent = `${SYMBOL} ・ ${TF} ・ ${BARS.length} 根`
+      + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續");
+    setStatus("live", `${SYMBOL} ${TF}　最後更新 ${new Date().toLocaleTimeString("zh-TW",{hour12:false})}`);
+  }catch(err){
+    setStatus("err", "更新失敗");
+    showErr(`<b>取得資料失敗：</b>${err.message}<br>
+      可能原因：網路中斷，或所在網路無法連到 Binance 公開 API。
+      可改選另一個資料源重試；圖表仍會以最後一次成功取得的資料計算。`);
+  }finally{
+    busy = false;
+  }
+}
+
+let LASTSPOT = null;
+
+/* 事件綁定 */
+["srcSel","per","mult","cost","session"].forEach(id=>{
+  $(id).addEventListener("change", ()=> run(false));
+});
+["feed","tf","bars"].forEach(id=>{
+  $(id).addEventListener("change", ()=> run(true));
+});
+$("refresh").addEventListener("click", ()=> run(true));
+
+// 預設值＝經 20000 根／223 天驗證的最佳組合（勝率 56.3%、PF 4.43、淨 +40.6%）
+const DEFAULTS = {feed:"PAXGUSDT", tf:"11m", bars:"20000",
+                  srcSel:"hl2", per:300, mult:23, cost:0.05, session:true};
+$("preset").addEventListener("click", ()=>{
+  const needRefetch = $("feed").value !== DEFAULTS.feed
+                   || $("tf").value   !== DEFAULTS.tf
+                   || $("bars").value !== DEFAULTS.bars
+                   || $("session").checked !== DEFAULTS.session;
+  $("feed").value = DEFAULTS.feed; $("tf").value = DEFAULTS.tf; $("bars").value = DEFAULTS.bars;
+  $("srcSel").value = DEFAULTS.srcSel;
+  $("per").value = DEFAULTS.per; $("mult").value = DEFAULTS.mult;
+  $("cost").value = DEFAULTS.cost; $("session").checked = DEFAULTS.session;
+  run(needRefetch);
+});
+
+// 你的原始參數（取樣週期 100），用來對照
+$("orig").addEventListener("click", ()=>{
+  $("srcSel").value = "hl2"; $("per").value = 100; $("mult").value = 23;
+  run(false);
+});
+
+function resetTimer(){
+  if(timer) clearInterval(timer);
+  if($("auto").checked) timer = setInterval(()=> run(true), 30000);
+}
+$("auto").addEventListener("change", resetTimer);
+
+let rz;
+window.addEventListener("resize", ()=>{
+  clearTimeout(rz);
+  rz = setTimeout(()=>{ if(LASTR){ drawChart(BARS, LASTR); run(false); } }, 180);
+});
+
+run(true).then(resetTimer);
+</script>
+</body>
+</html>
