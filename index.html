@@ -16,7 +16,7 @@
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2331; --line:#2b3444;
     --txt:#e6edf3; --dim:#8b98a9; --dim2:#5f6b7d;
     /* 台股慣例：上漲紅、下跌綠 */
-    --up:#ef5350; --down:#26a69a; --mid:#78909c;
+    --up:#ff3b3b; --down:#4cff00; --mid:#78909c; --live:#00d4ff;
     --gold:#e5b53c; --accent:#58a6ff;
     --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
   }
@@ -76,8 +76,8 @@
   .up{color:var(--up)} .down{color:var(--down)} .mid{color:var(--mid)} .gold{color:var(--gold)}
 
   .card.signal{border-width:1px}
-  .card.signal.long{border-color:var(--up);background:linear-gradient(180deg,rgba(239,83,80,.13),transparent)}
-  .card.signal.short{border-color:var(--down);background:linear-gradient(180deg,rgba(38,166,154,.13),transparent)}
+  .card.signal.long{border-color:var(--up);background:linear-gradient(180deg,rgba(255,59,59,.15),transparent)}
+  .card.signal.short{border-color:var(--down);background:linear-gradient(180deg,rgba(76,255,0,.13),transparent)}
 
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 15px;margin-bottom:14px}
   /* 圖表區：撐滿剩餘高度 */
@@ -100,6 +100,7 @@
   }
   .zoombar button:hover{color:var(--accent);border-color:var(--accent)}
   canvas{display:block;width:100%;height:100%;border-radius:5px}
+  #lv{position:absolute;inset:0;pointer-events:none}
   #tip{
     position:absolute;pointer-events:none;display:none;z-index:5;
     background:rgba(13,17,23,.95);border:1px solid var(--line);border-radius:5px;
@@ -118,8 +119,8 @@
   td{padding:6px 9px;border-bottom:1px solid rgba(43,52,68,.55)}
   tbody tr:hover{background:rgba(88,166,255,.06)}
   .pill{padding:1px 7px;border-radius:99px;font-size:11px;font-weight:600}
-  .pill.long{background:rgba(239,83,80,.18);color:var(--up)}
-  .pill.short{background:rgba(38,166,154,.18);color:var(--down)}
+  .pill.long{background:rgba(255,59,59,.18);color:var(--up)}
+  .pill.short{background:rgba(76,255,0,.16);color:var(--down)}
 
   .eqbox{height:150px}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px}
@@ -328,7 +329,7 @@
 <div class="grid" id="cards"></div>
 
 <div class="ticker">
-  <span class="ticker-tag">黃金新聞</span>
+  <span class="ticker-tag">新聞</span>
   <div class="ticker-view">
     <div class="ticker-track" id="tickerTrack"><span class="idle">讀取最新黃金新聞…</span></div>
   </div>
@@ -337,7 +338,7 @@
 <section class="chartcard">
   <h2>價格 × Range Filter 通道 <span class="tag" id="chartTag">—</span></h2>
   <div id="chartBox">
-    <canvas id="cv"></canvas><div id="tip"></div>
+    <canvas id="cv"></canvas><canvas id="lv"></canvas><div id="tip"></div>
     <div class="zoombar">
       <button data-z="in" title="放大">＋</button>
       <button data-z="out" title="縮小">－</button>
@@ -963,6 +964,7 @@ function applyLivePrice(px){
     const v = (LIVE.heldDir>0 ? (px/LIVE.entry-1) : (LIVE.entry/px-1)) * 100;
     hf.textContent = pct(v); hf.className = v>=0 ? "up" : "down";
   }
+  drawLive();
 }
 
 async function tickPrice(){
@@ -1063,6 +1065,7 @@ function setupCanvas(cv){
   return {ctx, W:r.width, H:r.height};
 }
 
+const C_UP = "#ff3b3b", C_DN = "#4cff00", C_LIVE = "#00d4ff";
 let VIEW = null;
 const MINBARS = 40;                 // 最多放大到只剩 40 根
 let ZOOM = {span:null, off:0};      // span=null 代表全圖
@@ -1078,7 +1081,7 @@ function drawChart(bars, R){
   const off  = Math.max(0, Math.min(total - show, Math.round(ZOOM.off)));
   const s = total - off - show;
   const e = s + show;                       // 不含
-  const PL = 8, PR = 66, PT = 12, PB = 24;
+  const PL = 8, PR = 54, PT = 12, PB = 24;
   const cw = W - PL - PR, ch = H - PT - PB;
 
   let lo = Infinity, hi = -Infinity;
@@ -1100,8 +1103,8 @@ function drawChart(bars, R){
     const p = lo + (hi-lo)*g/5, y = Y(p);
     ctx.strokeStyle = "rgba(43,52,68,.55)"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(PL,y); ctx.lineTo(W-PR,y); ctx.stroke();
-    ctx.fillStyle = "#5f6b7d";
-    ctx.fillText(p.toLocaleString("en-US",{maximumFractionDigits:1}), W-PR+7, y);
+    ctx.fillStyle = "#5f6b7d"; ctx.textAlign = "right";
+    ctx.fillText(p.toLocaleString("en-US",{maximumFractionDigits:1}), W-3, y);
   }
   // 時間軸：窄螢幕改成只標日期，並依可用寬度決定標幾格，避免文字疊在一起
   ctx.textBaseline = "top";
@@ -1151,7 +1154,7 @@ function drawChart(bars, R){
   // 過濾線（依方向分段上色）
   ctx.lineWidth = 2.2; ctx.lineJoin = "round";
   for(let i=s+1;i<e;i++){
-    const col = R.upward[i]>0 ? "#ef5350" : R.downward[i]>0 ? "#26a69a" : "#78909c";
+    const col = R.upward[i]>0 ? C_UP : R.downward[i]>0 ? C_DN : "#78909c";
     ctx.beginPath();
     ctx.moveTo(X(i-1), Y(R.filt[i-1]));
     ctx.lineTo(X(i), Y(R.filt[i]));
@@ -1168,9 +1171,39 @@ function drawChart(bars, R){
     if(up){ ctx.moveTo(x,y-8); ctx.lineTo(x-6,y+3); ctx.lineTo(x+6,y+3); }
     else  { ctx.moveTo(x,y+8); ctx.lineTo(x-6,y-3); ctx.lineTo(x+6,y-3); }
     ctx.closePath();
-    ctx.fillStyle = up ? "#ef5350" : "#26a69a"; ctx.fill();
+    ctx.fillStyle = up ? C_UP : C_DN; ctx.fill();
     ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1; ctx.stroke();
   }
+  drawLive();
+}
+
+/* 即時現價線：畫在另一張疊圖上，每秒更新只重畫這一條，不動主圖 */
+function drawLive(){
+  const cv = $("lv");
+  if(!cv || !VIEW) return;
+  const {ctx, W, H} = setupCanvas(cv);
+  ctx.clearRect(0, 0, W, H);
+  const px = LIVEPX != null ? LIVEPX : (BARS.length ? BARS[BARS.length-1].c : null);
+  if(px == null) return;
+  const {Y, PL, PR, lo, hi} = VIEW;
+  if(px < lo || px > hi) return;              // 超出可視價格範圍就不畫
+  const y = Y(px);
+
+  ctx.setLineDash([4,4]); ctx.lineWidth = 1.2; ctx.strokeStyle = C_LIVE;
+  ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W-PR, y); ctx.stroke();
+  ctx.setLineDash([]);
+
+  const txt = fmt(px);
+  ctx.font = "11px ui-monospace,monospace"; ctx.textBaseline = "middle";
+  const bw = Math.min(PR - 2, ctx.measureText(txt).width + 10), bh = 16;
+  const bx = W - bw - 1, by = y - bh/2;
+  ctx.fillStyle = C_LIVE;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 3); else ctx.rect(bx, by, bw, bh);
+  ctx.fill();
+  ctx.fillStyle = "#04222b"; ctx.textAlign = "center";
+  ctx.fillText(txt, bx + bw/2, y);
+  ctx.textAlign = "left";
 }
 
 function drawEquity(BT){
@@ -1195,10 +1228,10 @@ function drawEquity(BT){
   ctx.beginPath();
   c.forEach((v,i)=> i===0 ? ctx.moveTo(X(i),Y(v)) : ctx.lineTo(X(i),Y(v)));
   const win = c[c.length-1] >= 0;
-  ctx.strokeStyle = win ? "#ef5350" : "#26a69a"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = win ? C_UP : C_DN; ctx.lineWidth = 2; ctx.stroke();
 
   ctx.lineTo(X(c.length-1), Y(0)); ctx.lineTo(X(0), Y(0)); ctx.closePath();
-  ctx.fillStyle = win ? "rgba(239,83,80,.13)" : "rgba(38,166,154,.13)";
+  ctx.fillStyle = win ? "rgba(255,59,59,.13)" : "rgba(76,255,0,.12)";
   ctx.fill();
 }
 
@@ -1701,7 +1734,7 @@ window.addEventListener("resize", ()=>{
 });
 
 run(true).then(()=>{ resetTimer(); resetLive(); });
-$("verTag").textContent = "版本 005・單頁版";
+$("verTag").textContent = "版本 006・單頁版";
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
