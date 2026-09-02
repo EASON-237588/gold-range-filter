@@ -352,7 +352,7 @@
     <div class="alarm-k">訊號警報</div>
     <div class="alarm-v" id="alarmDir">—</div>
     <div class="alarm-s" id="alarmTxt">—</div>
-    <button class="primary" id="alarmStop">知道了（<span id="alarmSec">15</span>）</button>
+    <button class="primary" id="alarmStop">知道了（<span id="alarmSec">30</span>）</button>
   </div>
 </div>
 
@@ -428,7 +428,7 @@
     </select>
   </label>
   <label class="chk" title="偵測到新訊號時響 15 秒並跳出橫幅"><input type="checkbox" id="alarm" checked> 訊號警報</label>
-  <label class="chk" title="盤中訊號可能反悔，勾了就等那根 K 收完才響"><input type="checkbox" id="alarmClosed"> 只在收盤確認後才響</label>
+  <label class="chk" title="盤中訊號可能反悔，勾了就等那根 K 收完才響"><input type="checkbox" id="alarmClosed" checked> 只在收盤確認後才響</label>
   <button id="alarmPerm">開啟系統通知</button>
   <button id="alarmTest">測試警報</button>
   <button class="primary" id="refresh">立即更新</button>
@@ -529,12 +529,13 @@
           <b>3. 完整重抓要手動</b>——按「立即更新」或改任何參數。20,000 根 11 分 K 要打約 330 個請求、
           解壓後約 50MB，所以永遠不自動做。</div>
 
-        <div class="warn"><b>訊號警報。</b>偵測到新訊號時會響 15 秒、震動、跳出橫幅，
-          並發一則系統通知（要先在參數設定按「開啟系統通知」）。
-          瀏覽器規定要有使用者動作才准出聲，所以<b>開頁後請先點畫面任一處</b>把音訊解鎖，
+        <div class="warn"><b>訊號警報。</b>偵測到新訊號時會響 <b>30 秒</b>、震動、跳出橫幅，
+          並發一則系統通知。<br>
+          瀏覽器規定要有使用者動作才准出聲、也才准問通知權限，所以<b>開頁後請先點畫面任一處</b>——
+          點一下同時完成音訊解鎖與通知授權，不必自己去按那顆鈕。
           參數設定裡有「測試警報」可以確認會不會響。<br>
-          預設是<b>盤中就響</b>，橫幅會標明「尚未收盤（可能反轉）」。
-          不想被假訊號吵，勾「只在收盤確認後才響」，改成那根 K 收完才叫。
+          預設<b>只在收盤確認後才響</b>，也就是等那根 K 收完、訊號定案才叫，避開盤中反悔的假訊號。
+          想要早一步知道就把那個勾取消，改成盤中就響，橫幅會標明「尚未收盤（可能反轉）」。
           同一根 K 的訊號只會響一次，重新整理也不會再叫。</div>
 
         <div class="warn"><b>App 關掉之後就叫不動你，這是做不到的。</b>
@@ -1290,7 +1291,7 @@ async function run(refetch = true){
 let LASTSPOT = null;
 
 /* ============ 訊號警報 ============ */
-const ALARM_SEC = 15, ALARM_KEY = "gold_rf_alerted";
+const ALARM_SEC = 30, ALARM_KEY = "gold_rf_alerted";
 let AC = null, alarmBeat = null, alarmEnd = null, alarmCount = null;
 
 // 瀏覽器規定要有使用者動作才准出聲，第一次點畫面時把音訊解鎖
@@ -1302,6 +1303,17 @@ function unlockAudio(){
 }
 document.addEventListener("pointerdown", unlockAudio, {once:false});
 
+// 通知權限預設就要，但瀏覽器多半要求由使用者動作觸發，所以掛在第一次點畫面時問
+let askedNotif = false;
+document.addEventListener("pointerdown", ()=>{
+  if(askedNotif || !("Notification" in window) || Notification.permission !== "default") return;
+  askedNotif = true;
+  Notification.requestPermission().then(r=>{
+    $("alarmPerm").textContent = r === "granted" ? "系統通知已開啟"
+                              : r === "denied"  ? "系統通知被拒絕" : "開啟系統通知";
+  }).catch(()=>{});
+}, {once:true});
+
 function beep(dir){
   if(!AC) return;
   const t0 = AC.currentTime;
@@ -1311,7 +1323,7 @@ function beep(dir){
     o.type = "square"; o.frequency.value = f;
     const st = t0 + k * 0.2;
     g.gain.setValueAtTime(0.0001, st);
-    g.gain.exponentialRampToValueAtTime(0.28, st + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.56, st + 0.02);   // 音量：原本的兩倍
     g.gain.exponentialRampToValueAtTime(0.0001, st + 0.18);
     o.connect(g); g.connect(AC.destination);
     o.start(st); o.stop(st + 0.2);
@@ -1654,7 +1666,7 @@ window.addEventListener("resize", ()=>{
 });
 
 run(true).then(()=>{ resetTimer(); resetLive(); });
-$("verTag").textContent = "版本 003・單頁版";
+$("verTag").textContent = "版本 004・單頁版";
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
