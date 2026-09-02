@@ -14,6 +14,7 @@
     --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  html,body{max-width:100%;overflow-x:hidden}
   body{
     background:var(--bg); color:var(--txt); min-height:100vh;
     font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
@@ -91,6 +92,7 @@
   .pill.long{background:rgba(239,83,80,.18);color:var(--up)}
   .pill.short{background:rgba(38,166,154,.18);color:var(--down)}
 
+  .eqbox{height:150px}
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:9px}
   .stat{background:var(--panel2);border-radius:6px;padding:9px 11px}
   .stat .k{font-size:11px;color:var(--dim);margin-bottom:3px}
@@ -161,6 +163,43 @@
     .notes{font-size:12px;line-height:1.75}
     footer{font-size:10.5px}
   }
+  /* ---- 手機直向（375×812 一類）：卡片式堆疊 ---- */
+  @media(max-width:640px) and (orientation:portrait){
+    /* 首屏四張卡：報價兩欄並排，訊號與持倉各佔滿一整列 */
+    .grid{grid-template-columns:repeat(2,1fr)}
+    .grid .card.signal,.grid .card.wide{grid-column:1 / -1}
+
+    /* 輸入框 16px，避免 iOS 聚焦時自動放大整頁 */
+    .toolbar select,.toolbar input[type=number]{font-size:16px}
+
+    /* 直向螢幕高、圖可以拉高一點 */
+    #chartBox{height:44vh;min-height:250px;max-height:400px}
+    .eqbox{height:120px}
+    .stats{grid-template-columns:repeat(2,1fr)}
+
+    /* 訊號歷史表格轉堆疊卡片：一列一張，左欄位名右內容 */
+    .tblwrap{overflow-x:visible;max-height:none}
+    table thead{display:none}
+    table,tbody,tr,td{display:block;width:100%}
+    tbody tr{
+      background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+      padding:7px 10px;margin-bottom:8px;
+    }
+    tbody tr:hover{background:var(--panel2)}
+    tbody tr:last-child{margin-bottom:0}
+    td{
+      display:flex;justify-content:space-between;align-items:center;gap:12px;
+      padding:3px 0;border:0;
+    }
+    td::before{
+      content:attr(data-l);color:var(--dim);font-size:11px;
+      font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+      letter-spacing:.5px;flex:none;
+    }
+    td[colspan]{display:block}
+    td[colspan]::before{content:none}
+  }
+
   /* 只有極窄機種才降為單欄；375/390 的 iPhone 仍維持兩欄 */
   @media(max-width:340px){
     .grid{grid-template-columns:1fr}
@@ -256,14 +295,16 @@
   </div>
 </div>
 
-<div class="panel">
-  <h2>訊號績效統計 <span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span></h2>
-  <div class="stats" id="stats"></div>
-  <div style="margin-top:12px">
-    <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
-    <div style="height:150px"><canvas id="eq"></canvas></div>
+<details class="fold" id="foldStats">
+  <summary>訊號績效統計 <span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span></summary>
+  <div class="foldbody">
+    <div class="stats" id="stats"></div>
+    <div style="margin-top:12px">
+      <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
+      <div class="eqbox"><canvas id="eq"></canvas></div>
+    </div>
   </div>
-</div>
+</details>
 
 <details class="fold" id="foldSignals">
   <summary>訊號歷史 <span class="tag" id="sigTag">—</span></summary>
@@ -630,7 +671,7 @@ function renderCards(bars, R, BT, spot, P){
 
   // 最近訊號
   const lastSig = R.rows.length ? R.rows[R.rows.length-1] : null;
-  let sigCard = `<div class="card"><div class="k">最近訊號</div><div class="v mid">無</div>
+  let sigCard = `<div class="card wide"><div class="k">最近訊號</div><div class="v mid">無</div>
      <div class="s">目前參數下區間內未觸發</div></div>`;
   if(lastSig){
     const sb = bars[lastSig.i];
@@ -650,7 +691,7 @@ function renderCards(bars, R, BT, spot, P){
       <div class="s">進場 ${fmt(held.entry)}　浮動 <span class="${
         ((held.dir>0?(last.c/held.entry-1):(held.entry/last.c-1))*100)>=0?"up":"down"
       }">${pct((held.dir>0?(last.c/held.entry-1):(held.entry/last.c-1))*100)}</span></div></div>`
-    : `<div class="card"><div class="k">持倉狀態</div><div class="v mid">空手</div>
+    : `<div class="card wide"><div class="k">持倉狀態</div><div class="v mid">空手</div>
       <div class="s">等待下一個訊號</div></div>`;
 
   $("cards").innerHTML = `
@@ -682,11 +723,11 @@ function renderSignals(bars, R){
     const b = bars[r.i];
     const chg = (bars[n].c/b.c - 1) * 100 * r.dir;
     return `<tr>
-      <td>${tsText(b.t)}</td>
-      <td><span class="pill ${r.dir>0?"long":"short"}">${r.dir>0?"買進":"賣出"}</span></td>
-      <td>${fmt(b.c)}</td>
-      <td style="color:var(--dim)">${fmt(R.filt[r.i])}</td>
-      <td class="${chg>=0?"up":"down"}">${pct(chg)}</td>
+      <td data-l="時間">${tsText(b.t)}</td>
+      <td data-l="方向"><span class="pill ${r.dir>0?"long":"short"}">${r.dir>0?"買進":"賣出"}</span></td>
+      <td data-l="訊號價">${fmt(b.c)}</td>
+      <td data-l="過濾線" style="color:var(--dim)">${fmt(R.filt[r.i])}</td>
+      <td data-l="後續變動" class="${chg>=0?"up":"down"}">${pct(chg)}</td>
     </tr>`;
   }).join("");
 }
@@ -770,15 +811,20 @@ function drawChart(bars, R){
     ctx.fillStyle = "#5f6b7d";
     ctx.fillText(p.toLocaleString("en-US",{maximumFractionDigits:1}), W-PR+7, y);
   }
-  // 時間軸
+  // 時間軸：窄螢幕改成只標日期，並依可用寬度決定標幾格，避免文字疊在一起
   ctx.textBaseline = "top";
-  const step = Math.max(1, Math.floor(show/7));
+  const dateOnly = cw < 520;
+  const labFn = dateOnly ? (t=>tsText(t).slice(0,5)) : tsText;
+  const labW  = dateOnly ? 44 : 78;
+  const nLab  = Math.max(2, Math.min(7, Math.floor(cw / labW)));
+  const step  = Math.max(1, Math.floor(show / nLab));
   for(let i=s; i<bars.length; i+=step){
     const x = X(i);
     ctx.strokeStyle = "rgba(43,52,68,.35)";
     ctx.beginPath(); ctx.moveTo(x,PT); ctx.lineTo(x,PT+ch); ctx.stroke();
-    ctx.fillStyle = "#5f6b7d"; ctx.textAlign = "center";
-    ctx.fillText(tsText(bars[i].t), x, PT+ch+6);
+    ctx.fillStyle = "#5f6b7d";
+    ctx.textAlign = x < PL+labW/2 ? "left" : (x > W-PR-labW/2 ? "right" : "center");
+    ctx.fillText(labFn(bars[i].t), x, PT+ch+6);
   }
   ctx.textAlign = "left";
 
@@ -880,7 +926,7 @@ $("cv").addEventListener("mousemove", e=>{
 $("cv").addEventListener("mouseleave", ()=> $("tip").style.display = "none");
 
 /* ============ 主流程 ============ */
-let LASTR = null, timer = null, busy = false;
+let LASTR = null, LASTBT = null, timer = null, busy = false;
 
 function setStatus(cls, txt){
   $("dot").className = "status-dot " + cls;
@@ -919,13 +965,17 @@ async function run(refetch = true){
     const R  = compute(BARS, P);
     LASTR = R;
     const BT = backtest(BARS, R, P);
+    LASTBT = BT;
     const spot = refetch ? await fetchSpot() : LASTSPOT;
     LASTSPOT = spot;
 
     renderCards(BARS, R, BT, spot, P);
     renderSignals(BARS, R);
     renderStats(BT, P);
-    $("statTag").textContent = "純訊號進出、無停損停利・單趟成本 "+P.cost+"%";
+    $("statTag").textContent =
+      `${BT.total} 筆・勝率 ${BT.winRate!=null?BT.winRate.toFixed(1)+"%":"—"}・`
+      + `PF ${BT.pf==null?"—":(BT.pf===Infinity?"∞":BT.pf.toFixed(2))}・`
+      + `淨 ${pct(BT.net)}・回撤 ${BT.mdd?("-"+BT.mdd.toFixed(2)+"%"):"—"}`;
     // 收合時也要看得到目前設定
     const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[P.srcMode];
     $("paramTag").textContent =
@@ -933,7 +983,7 @@ async function run(refetch = true){
       + `${srcTxt}・週期 ${P.per}・乘數 ${P.mult}・成本 ${P.cost}%`
       + ($("session").checked ? "・剔除休市" : "・24/7");
     drawChart(BARS, R);
-    drawEquity(BT);
+    if($("foldStats").open) drawEquity(BT);
 
     $("chartTag").textContent = `${SYMBOL} ・ ${TF} ・ ${BARS.length} 根`
       + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續");
@@ -986,10 +1036,18 @@ function resetTimer(){
 }
 $("auto").addEventListener("change", resetTimer);
 
+// 收合狀態下 canvas 量不到寬度，展開時才補畫權益曲線
+$("foldStats").addEventListener("toggle", ()=>{
+  if($("foldStats").open && LASTBT) drawEquity(LASTBT);
+});
+
 let rz;
 window.addEventListener("resize", ()=>{
   clearTimeout(rz);
-  rz = setTimeout(()=>{ if(LASTR){ drawChart(BARS, LASTR); run(false); } }, 180);
+  rz = setTimeout(()=>{
+    if(LASTR){ drawChart(BARS, LASTR); run(false); }
+    if(LASTBT && $("foldStats").open) drawEquity(LASTBT);
+  }, 180);
 });
 
 run(true).then(resetTimer);
