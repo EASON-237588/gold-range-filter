@@ -61,6 +61,9 @@
   button:hover{border-color:var(--accent);color:var(--accent)}
   button.primary{background:var(--accent);border-color:var(--accent);color:#0d1117;font-weight:600}
   button.primary:hover{opacity:.87;color:#0d1117}
+  .hint{grid-column:1 / -1;font-size:11.5px;color:var(--dim);line-height:1.7;
+        border-left:2px solid var(--gold);padding-left:10px}
+  .hint b{color:var(--txt)}
   .chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);cursor:pointer;user-select:none}
   .chk input{accent-color:var(--accent);cursor:pointer}
   .sep{width:1px;height:22px;background:var(--line)}
@@ -131,8 +134,14 @@
   .warn{border-left:2px solid var(--gold);padding-left:11px;margin:9px 0}
 
   footer{color:var(--dim2);font-size:11.5px;text-align:center;line-height:1.8}
-  .err{background:rgba(239,83,80,.1);border:1px solid var(--down);color:#ffb4b2;
-       padding:10px 13px;border-radius:6px;font-size:13px;display:none;flex:none}
+  .err{
+    position:fixed;left:12px;right:12px;top:10px;z-index:50;cursor:pointer;
+    background:rgba(35,18,20,.97);border:1px solid var(--down);color:#ffb4b2;
+    padding:10px 13px;border-radius:8px;font-size:13px;display:none;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:640px;margin:0 auto;
+  }
+  button:disabled{opacity:.55;cursor:default}
+  button:disabled:hover{border-color:var(--line);color:var(--dim)}
 
   /* ---- 底部分頁列 ---- */
   .tabbar{
@@ -431,6 +440,7 @@
   <label class="chk" title="盤中訊號可能反悔，勾了就等那根 K 收完才響"><input type="checkbox" id="alarmClosed" checked> 只在收盤確認後才響</label>
   <button id="alarmPerm">開啟系統通知</button>
   <button id="alarmTest">測試警報</button>
+  <div class="hint" id="notifHint"></div>
   <button class="primary" id="refresh">立即更新</button>
   <button id="preset">預設值</button>
   <button id="orig">回到你的參數</button>
@@ -1308,10 +1318,7 @@ let askedNotif = false;
 document.addEventListener("pointerdown", ()=>{
   if(askedNotif || !("Notification" in window) || Notification.permission !== "default") return;
   askedNotif = true;
-  Notification.requestPermission().then(r=>{
-    $("alarmPerm").textContent = r === "granted" ? "系統通知已開啟"
-                              : r === "denied"  ? "系統通知被拒絕" : "開啟系統通知";
-  }).catch(()=>{});
+  Notification.requestPermission().then(updateNotifHint).catch(()=>{});
 }, {once:true});
 
 function beep(dir){
@@ -1390,18 +1397,46 @@ function checkAlarm(bars, R){
   fireAlarm(sig.dir, bars[sig.i].c, tsText(bars[sig.i].t), confirmed);
 }
 
+$("errBox").addEventListener("click", ()=> showErr(null));
 $("alarmStop").addEventListener("click", stopAlarm);
 $("alarmTest").addEventListener("click", ()=>{
   fireAlarm(-1, BARS.length ? BARS[BARS.length-1].c : 4500,
             tsText(Date.now()), false);
 });
+// 通知在哪些環境拿得到，講清楚而不是丟一句「不支援」
+function isStandalone(){
+  try{
+    return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  }catch(e){ return false; }
+}
+function updateNotifHint(){
+  const b = $("alarmPerm"), h = $("notifHint");
+  if(!("Notification" in window)){
+    b.disabled = true;
+    b.textContent = "此環境不支援通知";
+    h.innerHTML = isStandalone()
+      ? "這個裝置的瀏覽器沒有提供通知功能。<b>警報聲與畫面橫幅照常運作。</b>"
+      : "你現在是在 <b>App 的內建瀏覽器</b>裡開這頁（LINE、FB、IG 那種），或是 iPhone 上還沒安裝的 Safari——"
+        + "這兩種情況瀏覽器都不會給通知權限。<br>"
+        + "做法：改用 <b>Safari／Chrome</b> 開這個網址 → 按分享 → <b>加入主畫面</b>，"
+        + "之後從主畫面的圖示開啟，通知就會出現。<b>警報聲與畫面橫幅現在就能用。</b>";
+    return;
+  }
+  const p = Notification.permission;
+  b.disabled = p === "granted";
+  b.textContent = p === "granted" ? "系統通知已開啟" : p === "denied" ? "系統通知被拒絕" : "開啟系統通知";
+  h.innerHTML = p === "granted"
+    ? "通知已開啟。頁面在背景時訊號會用系統通知提醒，點通知會回到這頁。"
+    : p === "denied"
+      ? "你先前拒絕過通知。要改回來得去<b>瀏覽器的網站設定</b>把通知改成允許，這頁沒辦法代勞。"
+      : "點畫面任一處就會順便詢問通知權限，也可以按上面那顆鈕。";
+}
+
 $("alarmPerm").addEventListener("click", async ()=>{
   unlockAudio();
-  if(!("Notification" in window)){
-    showErr("<b>這個瀏覽器不支援系統通知。</b>警報聲與畫面橫幅仍然可用。"); return;
-  }
-  const r = await Notification.requestPermission();
-  $("alarmPerm").textContent = r === "granted" ? "系統通知已開啟" : "系統通知被拒絕";
+  if(!("Notification" in window)){ updateNotifHint(); return; }
+  try{ await Notification.requestPermission(); }catch(e){}
+  updateNotifHint();
 });
 
 /* ============ 圖表縮放與平移 ============ */
@@ -1666,12 +1701,11 @@ window.addEventListener("resize", ()=>{
 });
 
 run(true).then(()=>{ resetTimer(); resetLive(); });
-$("verTag").textContent = "版本 004・單頁版";
+$("verTag").textContent = "版本 005・單頁版";
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
-if("Notification" in window && Notification.permission === "granted")
-  $("alarmPerm").textContent = "系統通知已開啟";
+updateNotifHint();
 loadNews();
 setInterval(loadNews, 600000);   // 新聞 10 分鐘換一次
 </script>
