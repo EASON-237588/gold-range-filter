@@ -1,0 +1,21 @@
+name = "gold-rf-line"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+# 每分鐘跑一次偵測
+[triggers]
+crons = ["* * * * *"]
+
+# KV：存 11 分 K 歷史與「已推播過的訊號」
+# 用 npx wrangler kv namespace create STATE 產生 id 後貼進來
+[[kv_namespaces]]
+binding = "STATE"
+id = "貼上你的_KV_namespace_id"
+
+[vars]
+# 留空 = broadcast，發給這個官方帳號的所有好友（只有你自己加好友就等於只發給你）
+# 想指定對象再填 LINE 的 userId
+LINE_TO = ""
+
+# LINE_TOKEN 是密鑰，不要寫在這裡，用這行設定：
+#   npx wrangler secret put LINE_TOKEN
