@@ -14,15 +14,20 @@
     --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{max-width:100%;overflow-x:hidden}
+  [hidden]{display:none!important}
+  html,body{max-width:100%;overflow:hidden}   /* 單頁：整頁不捲動 */
   body{
-    background:var(--bg); color:var(--txt); min-height:100vh;
+    background:var(--bg); color:var(--txt); height:100dvh;
     font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
-    font-size:14px; line-height:1.55; padding:18px;
+    font-size:14px; line-height:1.55;
   }
-  .wrap{max-width:1440px;margin:0 auto}
+  /* 單頁外框：頭、卡片、跑馬燈、圖、底部分頁列，圖吃掉剩下的高度 */
+  .app{
+    max-width:1440px;margin:0 auto;height:100dvh;
+    display:flex;flex-direction:column;gap:11px;padding:14px 16px 0;
+  }
 
-  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;flex:none}
   header h1{font-size:19px;font-weight:700;letter-spacing:.5px}
   header h1 .g{color:var(--gold)}
   .srcinfo{font-size:12px;color:var(--dim2)}
@@ -53,7 +58,7 @@
   .chk input{accent-color:var(--accent);cursor:pointer}
   .sep{width:1px;height:22px;background:var(--line)}
 
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:11px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:11px;flex:none}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
   .card .k{font-size:11px;color:var(--dim);letter-spacing:.6px;margin-bottom:5px}
   .card .v{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1.15}
@@ -65,18 +70,26 @@
   .card.signal.short{border-color:var(--down);background:linear-gradient(180deg,rgba(38,166,154,.13),transparent)}
 
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 15px;margin-bottom:14px}
+  /* 圖表區：撐滿剩餘高度 */
+  .chartcard{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:13px 15px;
+    flex:1;min-height:0;display:flex;flex-direction:column;
+  }
+  .chartcard h2{font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.7px;margin-bottom:10px;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none}
+  .chartcard h2 .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim2)}
   .panel h2{font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.7px;margin-bottom:10px;
     display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .panel h2 .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim2)}
 
-  #chartBox{position:relative;width:100%;height:420px}
+  #chartBox{position:relative;width:100%;flex:1;min-height:0}
   canvas{display:block;width:100%;height:100%;border-radius:5px}
   #tip{
     position:absolute;pointer-events:none;display:none;z-index:5;
     background:rgba(13,17,23,.95);border:1px solid var(--line);border-radius:5px;
     padding:7px 10px;font-size:11.5px;font-family:var(--mono);white-space:pre;line-height:1.65;
   }
-  .legend{display:flex;gap:15px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:9px}
+  .legend{display:flex;gap:15px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:9px;flex:none}
   .legend i{display:inline-block;width:15px;height:2.5px;vertical-align:middle;margin-right:5px;border-radius:2px}
 
   .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -104,78 +117,112 @@
   .notes li{margin-left:17px;margin-bottom:5px}
   .warn{border-left:2px solid var(--gold);padding-left:11px;margin:9px 0}
 
-  footer{color:var(--dim2);font-size:11.5px;text-align:center;margin-top:20px;line-height:1.8}
+  footer{color:var(--dim2);font-size:11.5px;text-align:center;line-height:1.8}
   .err{background:rgba(239,83,80,.1);border:1px solid var(--down);color:#ffb4b2;
-       padding:10px 13px;border-radius:6px;margin-bottom:13px;font-size:13px;display:none}
+       padding:10px 13px;border-radius:6px;font-size:13px;display:none;flex:none}
 
-  /* ---- 可收合區塊 ---- */
-  .fold{background:var(--panel);border:1px solid var(--line);border-radius:8px;
-        margin-bottom:14px;overflow:hidden}
-  .fold>summary{
-    list-style:none;cursor:pointer;padding:12px 15px;user-select:none;
-    font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.7px;
-    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  /* ---- 底部分頁列 ---- */
+  .tabbar{
+    flex:none;display:flex;gap:6px;margin-top:auto;
+    padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));
+    border-top:1px solid var(--line);
   }
-  .fold>summary::-webkit-details-marker{display:none}
-  .fold>summary::before{content:"▸";color:var(--accent);font-size:10px;line-height:1}
-  .fold[open]>summary::before{content:"▾"}
-  .fold>summary:hover{color:var(--txt)}
-  .fold>summary .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;
-                     border:1px solid var(--line);color:var(--dim2);letter-spacing:0}
-  .foldbody{padding:0 15px 14px}
-  .fold .toolbar{margin:0;border:0;background:transparent;padding:0}
+  .tab{
+    flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:9px 3px;font-size:11.5px;color:var(--dim);cursor:pointer;font-family:inherit;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.3px;
+  }
+  .tab:hover{border-color:var(--accent);color:var(--accent)}
+  .tab.on{border-color:var(--accent);color:var(--accent);background:rgba(88,166,255,.09)}
 
-  /* ---- 手機版面 ---- */
-  @media(max-width:640px){
-    body{padding:9px;font-size:13px}
-    header{gap:6px;margin-bottom:11px}
-    header h1{font-size:16px}
-    .srcinfo{font-size:11px;width:100%}
+  /* ---- 彈出面板（取代原本的展開區塊，不影響主畫面高度） ---- */
+  .sheet{position:fixed;inset:0;z-index:40;display:none}
+  .sheet.open{display:block}
+  .sheet-bg{position:absolute;inset:0;background:rgba(0,0,0,.58)}
+  .sheet-box{
+    position:absolute;left:0;right:0;bottom:0;max-height:88dvh;
+    display:flex;flex-direction:column;background:var(--panel);
+    border-top:1px solid var(--line);border-radius:14px 14px 0 0;
+    box-shadow:0 -14px 44px rgba(0,0,0,.55);
+  }
+  .sheet-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;flex:none;
+           padding:13px 15px;border-bottom:1px solid var(--line)}
+  .sheet-h h3{font-size:13.5px;font-weight:600;letter-spacing:.7px}
+  .sheet-h .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;
+                border:1px solid var(--line);color:var(--dim2)}
+  .sheet-x{margin-left:auto;background:transparent;border:0;color:var(--dim);
+           font-size:21px;line-height:1;padding:0 4px;cursor:pointer}
+  .sheet-x:hover{color:var(--txt)}
+  .sheet-b{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:13px 15px 20px}
+  .sheet .toolbar{margin:0;border:0;background:transparent;padding:0}
+  @media(min-width:781px){
+    .sheet-box{left:50%;right:auto;transform:translateX(-50%);width:min(920px,92vw);
+               bottom:4vh;border-radius:12px;border:1px solid var(--line)}
+  }
 
-    .grid{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
-    .card{padding:9px 10px}
-    .card .k{font-size:10px;margin-bottom:3px}
+  /* ---- 新聞跑馬燈 ---- */
+  .ticker{
+    flex:none;display:flex;align-items:center;height:34px;overflow:hidden;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  }
+  .ticker-tag{
+    flex:none;height:100%;display:flex;align-items:center;padding:0 10px;
+    font-size:10px;letter-spacing:1.5px;color:var(--gold);
+    background:rgba(229,181,60,.08);border-right:1px solid var(--line);
+  }
+  .ticker-view{flex:1;min-width:0;height:100%;position:relative;overflow:hidden}
+  .ticker-track{
+    position:absolute;top:0;left:0;height:100%;display:flex;align-items:center;
+    white-space:nowrap;will-change:transform;
+  }
+  .ticker-track.run{animation:marquee linear infinite}
+  @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .ticker-view:hover .ticker-track{animation-play-state:paused}
+  .ticker .it{font-size:12px;color:var(--dim);padding-right:34px;position:relative}
+  .ticker .it b{color:var(--txt);font-weight:500}
+  .ticker .it .src{color:var(--dim2);font-size:11px}
+  .ticker .it::after{content:"◆";position:absolute;right:13px;color:var(--gold);opacity:.5;font-size:9px}
+  .ticker .idle{font-size:12px;color:var(--dim2);padding-left:11px}
+
+  /* 現價旁的即時心跳點 */
+  .beat{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);
+        margin-left:6px;vertical-align:middle;animation:beat 1s ease-in-out infinite}
+  @keyframes beat{0%,100%{opacity:1}50%{opacity:.18}}
+
+  /* ---- 手機（含直向與橫向） ---- */
+  @media(max-width:780px){
+    .app{padding:9px 10px 0;gap:8px}
+    header h1{font-size:15px}
+    .srcinfo{font-size:10.5px}
+    .grid{gap:7px}
+    .card{padding:8px 10px}
+    .card .k{font-size:10px;margin-bottom:2px}
     .card .v{font-size:17px}
-    .card .s{font-size:10px;line-height:1.5}
-
-    .fold,.panel{margin-bottom:10px}
-    .fold>summary{padding:11px 12px;font-size:12.5px}
-    .foldbody{padding:0 12px 12px}
-    .panel{padding:11px 12px}
-    .panel h2{font-size:12px}
-
-    /* 參數在手機上排成兩欄，欄位撐滿 */
-    .fold .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px}
-    .toolbar label{flex-direction:column;align-items:stretch;gap:3px;font-size:11px}
-    .toolbar label.chk{flex-direction:row;align-items:center;gap:6px}
-    .toolbar select,.toolbar input[type=number]{width:100%;padding:7px 8px;font-size:14px}
-    .toolbar .sep{display:none}
-    .toolbar button{width:100%;padding:9px 10px;font-size:13px}
-
-    #chartBox{height:270px}
-    .legend{gap:9px;font-size:10px}
+    .card .s{font-size:10px;line-height:1.45}
+    .ticker{height:30px}
+    .ticker .it{font-size:11.5px}
+    .chartcard{padding:9px 10px}
+    .legend{gap:9px;font-size:10px;margin-top:6px}
+    .tab{font-size:11px;padding:9px 2px}
+    .sheet-b{padding:12px}
     .stats{grid-template-columns:repeat(2,1fr);gap:7px}
     .stat{padding:8px 9px}
     .stat .v{font-size:14px}
-    .tblwrap{max-height:260px}
-    table{font-size:11.5px}
-    th,td{padding:5px 6px}
     .notes{font-size:12px;line-height:1.75}
-    footer{font-size:10.5px}
+    /* 參數在手機上排成兩欄，欄位撐滿；輸入框 16px 避免 iOS 自動放大 */
+    .sheet .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:9px 10px}
+    .toolbar label{flex-direction:column;align-items:stretch;gap:3px;font-size:11px}
+    .toolbar label.chk{flex-direction:row;align-items:center;gap:6px}
+    .toolbar select,.toolbar input[type=number]{width:100%;padding:7px 8px;font-size:16px}
+    .toolbar .sep{display:none}
+    .toolbar button{width:100%;padding:9px 10px;font-size:13px}
   }
-  /* ---- 手機直向（375×812 一類）：卡片式堆疊 ---- */
-  @media(max-width:640px) and (orientation:portrait){
-    /* 首屏四張卡：報價兩欄並排，訊號與持倉各佔滿一整列 */
+
+  /* ---- 手機直向：卡片式堆疊 ---- */
+  @media(max-width:780px) and (orientation:portrait){
+    /* 報價兩欄並排，訊號與持倉各佔滿一整列 */
     .grid{grid-template-columns:repeat(2,1fr)}
     .grid .card.signal,.grid .card.wide{grid-column:1 / -1}
-
-    /* 輸入框 16px，避免 iOS 聚焦時自動放大整頁 */
-    .toolbar select,.toolbar input[type=number]{font-size:16px}
-
-    /* 直向螢幕高、圖可以拉高一點 */
-    #chartBox{height:44vh;min-height:250px;max-height:400px}
-    .eqbox{height:120px}
-    .stats{grid-template-columns:repeat(2,1fr)}
 
     /* 訊號歷史表格轉堆疊卡片：一列一張，左欄位名右內容 */
     .tblwrap{overflow-x:visible;max-height:none}
@@ -187,10 +234,7 @@
     }
     tbody tr:hover{background:var(--panel2)}
     tbody tr:last-child{margin-bottom:0}
-    td{
-      display:flex;justify-content:space-between;align-items:center;gap:12px;
-      padding:3px 0;border:0;
-    }
+    td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:3px 0;border:0}
     td::before{
       content:attr(data-l);color:var(--dim);font-size:11px;
       font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
@@ -200,15 +244,38 @@
     td[colspan]::before{content:none}
   }
 
-  /* 只有極窄機種才降為單欄；375/390 的 iPhone 仍維持兩欄 */
+  /* 螢幕矮（手機橫向為主）：砍掉所有裝飾，把高度全讓給圖 */
+  @media(max-height:520px){
+    .app{padding:6px 9px 0;gap:5px}
+    header h1{font-size:13px}
+    .srcinfo{font-size:10px}
+    .grid{grid-template-columns:repeat(4,1fr);gap:6px}
+    .grid .card.signal,.grid .card.wide{grid-column:auto}
+    .card{padding:6px 8px}
+    .card .k{font-size:9.5px;margin-bottom:1px}
+    .card .v{font-size:15px}
+    .card .s{font-size:9.5px;line-height:1.35;max-height:2.7em;overflow:hidden}
+    .ticker{height:24px}
+    .ticker .it{font-size:11px}
+    .chartcard{padding:7px 9px}
+    .chartcard h2{display:none}      /* 資訊在頁首已經有了 */
+    .legend{display:none}
+    #chartBox{min-height:100px}
+    .tabbar{padding:5px 0 calc(5px + env(safe-area-inset-bottom,0px))}
+    .tab{padding:6px 2px;font-size:10.5px}
+    .sheet-box{max-height:94dvh}
+  }
+
+  /* 極窄機種 */
   @media(max-width:340px){
     .grid{grid-template-columns:1fr}
-    .fold .toolbar{grid-template-columns:1fr}
+    .sheet .toolbar{grid-template-columns:1fr}
+    .tab{font-size:10px}
   }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
 
 <header>
   <h1><span class="g">◆</span> 黃金 Range Filter 即時儀表板</h1>
@@ -217,9 +284,45 @@
 
 <div class="err" id="errBox"></div>
 
-<details class="fold" id="foldParams">
-  <summary>參數設定 <span class="tag" id="paramTag">—</span></summary>
-  <div class="foldbody">
+<div class="grid" id="cards"></div>
+
+<div class="ticker">
+  <span class="ticker-tag">黃金新聞</span>
+  <div class="ticker-view">
+    <div class="ticker-track" id="tickerTrack"><span class="idle">讀取最新黃金新聞…</span></div>
+  </div>
+</div>
+
+<section class="chartcard">
+  <h2>價格 × Range Filter 通道 <span class="tag" id="chartTag">—</span></h2>
+  <div id="chartBox"><canvas id="cv"></canvas><div id="tip"></div></div>
+  <div class="legend">
+    <span><i style="background:#c9d1d9"></i>價格</span>
+    <span><i style="background:var(--up)"></i>過濾線（上行）</span>
+    <span><i style="background:var(--down)"></i>過濾線（下行）</span>
+    <span><i style="background:var(--mid);opacity:.6"></i>上下軌</span>
+    <span><span class="up">▲</span> 買進　<span class="down">▼</span> 賣出</span>
+  </div>
+</section>
+
+<nav class="tabbar">
+  <button class="tab" data-sheet="shParams">參數設定</button>
+  <button class="tab" data-sheet="shSignals">訊號歷史</button>
+  <button class="tab" data-sheet="shStats">績效統計</button>
+  <button class="tab" data-sheet="shNotes">四個問題</button>
+  <button class="tab" data-sheet="shHelp">說明</button>
+</nav>
+
+</div><!-- /.app -->
+
+<!-- ============ 彈出面板（不佔主畫面高度，主畫面永遠一頁） ============ -->
+
+<div class="sheet" id="shParams">
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet-box">
+    <div class="sheet-h"><h3>參數設定</h3><span class="tag" id="paramTag">—</span>
+      <button class="sheet-x" data-close>&times;</button></div>
+    <div class="sheet-b">
   <div class="toolbar">
   <label>資料源
     <select id="feed">
@@ -273,53 +376,53 @@
   <label class="chk" title="剔除黃金休市時段的K線，讓週末跳空真實出現，與 TVC:GOLD／XAUUSD 對齊">
     <input type="checkbox" id="session" checked> 黃金交易時段</label>
   <div class="sep"></div>
-  <label class="chk" title="20000 根每次重抓約 330 個請求，開啟前請留意"><input type="checkbox" id="auto"> 自動更新</label>
+  <label class="chk" title="只打一支報價 API，不重算指標、不重畫圖"><input type="checkbox" id="live" checked> 現價每秒更新</label>
+  <label class="chk" title="20000 根每次重抓約 330 個請求，開啟前請留意"><input type="checkbox" id="auto"> 每 5 分完整重算</label>
   <button class="primary" id="refresh">立即更新</button>
   <button id="preset">預設值</button>
   <button id="orig">回到你的參數</button>
   </div>
-  </div>
-</details>
-
-<div class="grid" id="cards"></div>
-
-<div class="panel">
-  <h2>價格 × Range Filter 通道 <span class="tag" id="chartTag">—</span></h2>
-  <div id="chartBox"><canvas id="cv"></canvas><div id="tip"></div></div>
-  <div class="legend">
-    <span><i style="background:#c9d1d9"></i>價格</span>
-    <span><i style="background:var(--up)"></i>過濾線（上行）</span>
-    <span><i style="background:var(--down)"></i>過濾線（下行）</span>
-    <span><i style="background:var(--mid);opacity:.6"></i>上下軌</span>
-    <span><span class="up">▲</span> 買進訊號　<span class="down">▼</span> 賣出訊號</span>
+  
+    </div>
   </div>
 </div>
 
-<details class="fold" id="foldStats">
-  <summary>訊號績效統計 <span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span></summary>
-  <div class="foldbody">
-    <div class="stats" id="stats"></div>
-    <div style="margin-top:12px">
-      <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
-      <div class="eqbox"><canvas id="eq"></canvas></div>
+<div class="sheet" id="shSignals">
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet-box">
+    <div class="sheet-h"><h3>訊號歷史</h3><span class="tag" id="sigTag">—</span>
+      <button class="sheet-x" data-close>&times;</button></div>
+    <div class="sheet-b">
+      <div class="tblwrap">
+        <table><thead><tr>
+          <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
+        </tr></thead><tbody id="sigBody"></tbody></table>
+      </div>
     </div>
   </div>
-</details>
+</div>
 
-<details class="fold" id="foldSignals">
-  <summary>訊號歷史 <span class="tag" id="sigTag">—</span></summary>
-  <div class="foldbody">
-    <div class="tblwrap">
-      <table><thead><tr>
-        <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
-      </tr></thead><tbody id="sigBody"></tbody></table>
+<div class="sheet" id="shStats">
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet-box">
+    <div class="sheet-h"><h3>訊號績效統計</h3><span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span>
+      <button class="sheet-x" data-close>&times;</button></div>
+    <div class="sheet-b">
+      <div class="stats" id="stats"></div>
+      <div style="margin-top:12px">
+        <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
+        <div class="eqbox"><canvas id="eq"></canvas></div>
+      </div>
     </div>
   </div>
-</details>
+</div>
 
-<details class="fold" id="foldNotes">
-  <summary>原始策略的四個問題 <span class="tag">本儀表板已對應處理・暖機區訊號自動剔除</span></summary>
-  <div class="foldbody">
+<div class="sheet" id="shNotes">
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet-box">
+    <div class="sheet-h"><h3>原始策略的四個問題</h3><span class="tag">本儀表板已對應處理・暖機區訊號自動剔除</span>
+      <button class="sheet-x" data-close>&times;</button></div>
+    <div class="sheet-b">
   <div class="notes">
     <div class="warn"><b>1. ATR 過濾在原始碼裡完全沒作用。</b>
       原碼是 <code>atr_lower = close - atr*mult</code>，然後判斷 <code>close &gt; atr_lower</code>。
@@ -349,16 +452,47 @@
       必須靠 Infinity 槓桿才跑得動，該回測的絕對損益數字不具參考性。本頁統計一律用「每筆固定名目金額」計算報酬率，避開這個失真。
     </p>
   </div>
+  
+    </div>
   </div>
-</details>
+</div>
 
-<footer>
+<div class="sheet" id="shHelp">
+  <div class="sheet-bg" data-close></div>
+  <div class="sheet-box">
+    <div class="sheet-h"><h3>說明</h3><span class="tag" id="verTag">—</span>
+      <button class="sheet-x" data-close>&times;</button></div>
+    <div class="sheet-b">
+      <div class="notes">
+        <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。上面四張卡是現在的狀態，
+          中間跑馬燈是網路上最新的黃金新聞，下面是主圖，最底下五個鈕點開才是細節。</p>
+
+        <div class="warn"><b>更新頻率分兩層。</b><br>
+          <b>現價每 1 秒更新一次</b>——只打一支 Binance 報價 API，改的是現價、代幣溢價、
+          訊號後至今、持倉浮動這幾個數字，<b>不重算指標、不重畫主圖</b>，所以很省。
+          現價旁邊有紅點在閃就代表正在跑。<br>
+          <b>完整重算要手動</b>——按參數設定裡的「立即更新」，或改任何參數。那一次會重抓 K 線、
+          重算 Range Filter、重跑統計、重畫圖。20,000 根 11 分 K 要打約 330 個請求，所以不自動做。
+          想讓它自己跑就勾「每 5 分完整重算」。</div>
+
+        <div class="warn"><b>訊號會盤中反覆。</b>最後一根 K 線還沒收盤，
+          所以訊號有可能盤中出現、收盤前又縮回去。要確認，看訊號歷史裡那筆的時間是不是已經過了一根 K 的長度。</div>
+
+        <div class="warn"><b>新聞只是背景資訊。</b>來源是 Google News 的黃金關鍵字，每 10 分鐘換一次，
+          跟策略訊號沒有任何連動，不要拿它當進出依據。手指按住跑馬燈可以暫停，方便讀完一則。</div>
+
+        <p style="margin-top:11px;color:var(--dim2)">
+          資料源：Binance PAXG/USDT 或 XAUT/USDT K 線、gold-api.com 的 XAU/USD 現貨、
+          Google News RSS（經 rss2json 轉換）。全部在瀏覽器端直接抓，沒有後端，也沒有任何資料被送出去。</p>
+      </div>
+      <footer style="margin-top:14px;text-align:left">
   配色採台股慣例：<span class="up">上漲／多方為紅</span>、<span class="down">下跌／空方為綠</span>。
   週期標示 <b>✦</b> 者（2 分、11 分）為交易所未原生提供，由 1 分 K 線在前端聚合而成，時間桶以 Unix epoch 對齊，載入較慢。<br>
   Range Filter 演算法逐行對應原始 Pine Script v5（EMA / 遞迴過濾線 / upward-downward 計數 / CondIni 狀態機皆等價實作）。<br>
   黃金代幣價格與 XAUUSD 現貨存在小幅溢價與價差，適合判斷方向與型態，不宜當作報價來源。本頁僅供分析研究，不構成投資建議。
-</footer>
-
+      </footer>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -681,32 +815,100 @@ function renderCards(bars, R, BT, spot, P){
       <div class="k">最近訊號</div>
       <div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>
       <div class="s">${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}<br>
-        訊號後至今 <span class="${since>=0?"up":"down"}">${pct(since)}</span></div></div>`;
+        訊號後至今 <span id="sigSince" class="${since>=0?"up":"down"}">${pct(since)}</span></div></div>`;
   }
 
   const held = BT.open;
+  const heldPct = held ? (held.dir>0 ? (last.c/held.entry-1) : (held.entry/last.c-1))*100 : null;
   const heldCard = held ? `<div class="card signal ${held.dir>0?"long":"short"}">
       <div class="k">持倉狀態</div>
       <div class="v ${held.dir>0?"up":"down"}">${held.dir>0?"多單":"空單"}</div>
-      <div class="s">進場 ${fmt(held.entry)}　浮動 <span class="${
-        ((held.dir>0?(last.c/held.entry-1):(held.entry/last.c-1))*100)>=0?"up":"down"
-      }">${pct((held.dir>0?(last.c/held.entry-1):(held.entry/last.c-1))*100)}</span></div></div>`
+      <div class="s">進場 ${fmt(held.entry)}　浮動
+        <span id="heldFloat" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span></div></div>`
     : `<div class="card wide"><div class="k">持倉狀態</div><div class="v mid">空手</div>
       <div class="s">等待下一個訊號</div></div>`;
 
   $("cards").innerHTML = `
     <div class="card">
-      <div class="k">現價（${SYMBOL.replace("USDT","")}）</div>
-      <div class="v ${chg>=0?"up":"down"}">${fmt(last.c)}</div>
-      <div class="s">本根 ${pct(chg)}　${tsText(last.t)}</div>
+      <div class="k">現價（${SYMBOL.replace("USDT","")}）<span id="beat" class="beat" hidden></span></div>
+      <div id="pxNow" class="v ${chg>=0?"up":"down"}">${fmt(last.c)}</div>
+      <div id="pxSub" class="s">本根 ${pct(chg)}　${tsText(last.t)}</div>
     </div>
     <div class="card">
       <div class="k">現貨黃金 XAU/USD</div>
-      <div class="v gold">${spot!=null?fmt(spot):"—"}</div>
-      <div class="s">${spot!=null ? "代幣溢價 "+pct((last.c/spot-1)*100) : "報價源暫無回應"}</div>
+      <div id="spotNow" class="v gold">${spot!=null?fmt(spot):"—"}</div>
+      <div id="spotSub" class="s">${spot!=null ? "代幣溢價 "+pct((last.c/spot-1)*100) : "報價源暫無回應"}</div>
     </div>
     ${sigCard}
     ${heldCard}`;
+
+  // 供「每秒只更新現價」使用：記下算過一次的基準，之後就不必再重算指標
+  LIVE = {
+    prevClose: prev.c,
+    barTime  : tsText(last.t),
+    sigPrice : lastSig ? bars[lastSig.i].c : null,
+    sigDir   : lastSig ? lastSig.dir : 0,
+    entry    : held ? held.entry : null,
+    heldDir  : held ? held.dir : 0
+  };
+  $("beat").hidden = !$("live").checked;
+}
+
+/* ---- 每秒只更新現價：一支 ticker API，不碰指標、統計與圖 ---- */
+let LIVE = null, LIVEPX = null, liveTimer = null, spotTick = 0, liveFail = 0;
+
+function applyLivePrice(px){
+  if(!LIVE || !Number.isFinite(px) || !$("pxNow")) return;
+  LIVEPX = px;
+  const chg = (px/LIVE.prevClose - 1) * 100;
+  const el = $("pxNow");
+  el.textContent = fmt(px);
+  el.className = "v " + (chg>=0 ? "up" : "down");
+  $("pxSub").innerHTML = `本根 ${pct(chg)}　${LIVE.barTime}`;
+
+  if(LASTSPOT != null && $("spotSub"))
+    $("spotSub").textContent = "代幣溢價 " + pct((px/LASTSPOT - 1) * 100);
+
+  const sc = $("sigSince");
+  if(sc && LIVE.sigPrice){
+    const v = (px/LIVE.sigPrice - 1) * 100 * LIVE.sigDir;
+    sc.textContent = pct(v); sc.className = v>=0 ? "up" : "down";
+  }
+  const hf = $("heldFloat");
+  if(hf && LIVE.entry){
+    const v = (LIVE.heldDir>0 ? (px/LIVE.entry-1) : (LIVE.entry/px-1)) * 100;
+    hf.textContent = pct(v); hf.className = v>=0 ? "up" : "down";
+  }
+}
+
+async function tickPrice(){
+  if(busy || document.hidden || !$("live").checked) return;
+  try{
+    const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL}`, {cache:"no-store"});
+    if(!r.ok) throw new Error(r.status);
+    const px = +(await r.json()).price;
+    applyLivePrice(px);
+    liveFail = 0;
+    // 現貨每 15 秒跟一次就好，那支 API 沒必要每秒打
+    if(++spotTick % 15 === 0){
+      const sp = await fetchSpot();
+      if(sp != null){ LASTSPOT = sp; if($("spotNow")) $("spotNow").textContent = fmt(sp); }
+    }
+  }catch(e){
+    if(++liveFail >= 8){          // 連續失敗才停，避免偶發抖動就關掉
+      $("live").checked = false;
+      resetLive();
+      showErr("<b>即時報價已暫停：</b>連續 8 次取不到 Binance 報價，可能是網路或限流。可在參數設定重新勾選「現價每秒更新」。");
+    }
+  }
+}
+
+function resetLive(){
+  if(liveTimer) clearInterval(liveTimer);
+  liveTimer = null;
+  const on = $("live").checked;
+  if($("beat")) $("beat").hidden = !on;
+  if(on){ liveFail = 0; tickPrice(); liveTimer = setInterval(tickPrice, 1000); }
 }
 
 /* ============ 訊號表 ============ */
@@ -813,18 +1015,25 @@ function drawChart(bars, R){
   }
   // 時間軸：窄螢幕改成只標日期，並依可用寬度決定標幾格，避免文字疊在一起
   ctx.textBaseline = "top";
-  const dateOnly = cw < 520;
+  const dateOnly = cw < 640;
   const labFn = dateOnly ? (t=>tsText(t).slice(0,5)) : tsText;
-  const labW  = dateOnly ? 44 : 78;
+  const labW  = dateOnly ? 52 : 96;
   const nLab  = Math.max(2, Math.min(7, Math.floor(cw / labW)));
-  const step  = Math.max(1, Math.floor(show / nLab));
+  const step  = Math.max(1, Math.ceil(show / nLab));
+  let lastRight = -1e9;                       // 量過寬度才畫，硬性保證不疊字
   for(let i=s; i<bars.length; i+=step){
     const x = X(i);
     ctx.strokeStyle = "rgba(43,52,68,.35)";
     ctx.beginPath(); ctx.moveTo(x,PT); ctx.lineTo(x,PT+ch); ctx.stroke();
-    ctx.fillStyle = "#5f6b7d";
-    ctx.textAlign = x < PL+labW/2 ? "left" : (x > W-PR-labW/2 ? "right" : "center");
-    ctx.fillText(labFn(bars[i].t), x, PT+ch+6);
+
+    const txt = labFn(bars[i].t);
+    const w = ctx.measureText(txt).width;
+    const align = x < PL + w/2 ? "left" : (x > W-PR - w/2 ? "right" : "center");
+    const left = align === "left" ? x : align === "right" ? x - w : x - w/2;
+    if(left < lastRight + 12) continue;
+    ctx.fillStyle = "#5f6b7d"; ctx.textAlign = align;
+    ctx.fillText(txt, x, PT+ch+6);
+    lastRight = left + w;
   }
   ctx.textAlign = "left";
 
@@ -983,7 +1192,7 @@ async function run(refetch = true){
       + `${srcTxt}・週期 ${P.per}・乘數 ${P.mult}・成本 ${P.cost}%`
       + ($("session").checked ? "・剔除休市" : "・24/7");
     drawChart(BARS, R);
-    if($("foldStats").open) drawEquity(BT);
+    if(sheetOpen("shStats")) drawEquity(BT);
 
     $("chartTag").textContent = `${SYMBOL} ・ ${TF} ・ ${BARS.length} 根`
       + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續");
@@ -999,6 +1208,87 @@ async function run(refetch = true){
 }
 
 let LASTSPOT = null;
+
+/* ============ 底部分頁與彈出面板 ============ */
+function sheetOpen(id){ return $(id).classList.contains("open"); }
+
+function openSheet(id){
+  document.querySelectorAll(".sheet.open").forEach(el=> el.classList.remove("open"));
+  document.querySelectorAll(".tab.on").forEach(el=> el.classList.remove("on"));
+  const sh = $(id);
+  if(!sh) return;
+  sh.classList.add("open");
+  const btn = document.querySelector(`.tab[data-sheet="${id}"]`);
+  if(btn) btn.classList.add("on");
+  // 面板收著的時候 canvas 量不到寬度，開起來才畫得出權益曲線
+  if(id === "shStats" && LASTBT) requestAnimationFrame(()=> drawEquity(LASTBT));
+}
+function closeSheet(){
+  document.querySelectorAll(".sheet.open").forEach(el=> el.classList.remove("open"));
+  document.querySelectorAll(".tab.on").forEach(el=> el.classList.remove("on"));
+}
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const id = btn.dataset.sheet;
+    sheetOpen(id) ? closeSheet() : openSheet(id);
+  });
+});
+document.querySelectorAll("[data-close]").forEach(el=> el.addEventListener("click", closeSheet));
+document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); });
+
+/* ============ 新聞跑馬燈 ============ */
+const NEWS_RSS = "https://news.google.com/rss/search?q=" +
+  encodeURIComponent("黃金 OR 金價 OR gold price") + "&hl=zh-TW&gl=TW&ceid=TW:zh-Hant";
+
+// 兩條路：rss2json 直接吐 JSON；不行就換 CORS 代理拿原始 RSS 自己解
+async function fetchNews(){
+  try{
+    const r = await fetch("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(NEWS_RSS),
+                          {cache:"no-store"});
+    const j = await r.json();
+    if(j.status === "ok" && j.items && j.items.length) return j.items.map(i=> i.title);
+  }catch(e){}
+  try{
+    const r = await fetch("https://api.cors.lol/?url=" + encodeURIComponent(NEWS_RSS), {cache:"no-store"});
+    const doc = new DOMParser().parseFromString(await r.text(), "text/xml");
+    const t = [...doc.querySelectorAll("item > title")].map(n=> n.textContent);
+    if(t.length) return t;
+  }catch(e){}
+  return null;
+}
+
+async function loadNews(){
+  const titles = await fetchNews();
+  const track = $("tickerTrack");
+  if(!titles){
+    track.className = "ticker-track";
+    track.innerHTML = `<span class="idle">新聞來源暫時取不到，稍後自動再試</span>`;
+    return;
+  }
+  // Google News 的標題結尾是「 - 媒體名」，拆開讓媒體名淡一點
+  const items = titles.slice(0, 12).map(t=>{
+    const k = t.lastIndexOf(" - ");
+    const head = k > 0 ? t.slice(0, k) : t;
+    const src  = k > 0 ? t.slice(k + 3) : "";
+    return `<span class="it"><b>${esc(head)}</b>${src ? ` <span class="src">${esc(src)}</span>` : ""}</span>`;
+  }).join("");
+
+  // 內容排兩份，動畫跑到 -50% 剛好接回開頭，看起來是無縫的
+  track.className = "ticker-track";
+  track.innerHTML = items + items;
+  requestAnimationFrame(()=>{
+    const w = track.scrollWidth / 2;                 // 一份的寬度
+    track.style.animationDuration = Math.max(28, Math.round(w / 38)) + "s";
+    track.classList.add("run");
+  });
+}
+
+// RSS 標題裡已經是被轉義過的實體，先還原再重新轉義，才不會出現 &amp;amp;
+const _dec = document.createElement("textarea");
+function esc(t){
+  _dec.innerHTML = String(t);
+  return _dec.value.replace(/[&<>"]/g, c=> ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
 
 /* 事件綁定 */
 ["srcSel","per","mult","cost","session"].forEach(id=>{
@@ -1032,25 +1322,26 @@ $("orig").addEventListener("click", ()=>{
 
 function resetTimer(){
   if(timer) clearInterval(timer);
-  if($("auto").checked) timer = setInterval(()=> run(true), 30000);
+  if($("auto").checked) timer = setInterval(()=> run(true), 300000);
 }
 $("auto").addEventListener("change", resetTimer);
 
 // 收合狀態下 canvas 量不到寬度，展開時才補畫權益曲線
-$("foldStats").addEventListener("toggle", ()=>{
-  if($("foldStats").open && LASTBT) drawEquity(LASTBT);
-});
+$("live").addEventListener("change", resetLive);
 
 let rz;
 window.addEventListener("resize", ()=>{
   clearTimeout(rz);
   rz = setTimeout(()=>{
     if(LASTR){ drawChart(BARS, LASTR); run(false); }
-    if(LASTBT && $("foldStats").open) drawEquity(LASTBT);
+    if(LASTBT && sheetOpen("shStats")) drawEquity(LASTBT);
   }, 180);
 });
 
-run(true).then(resetTimer);
+run(true).then(()=>{ resetTimer(); resetLive(); });
+$("verTag").textContent = "版本 002・單頁版";
+loadNews();
+setInterval(loadNews, 600000);   // 新聞 10 分鐘換一次
 </script>
 </body>
 </html>
