@@ -117,13 +117,101 @@ function aggregate(bars1m, minutes){
   if(cur) out.push(cur);
   return out;
 }
-async function klines(limit, endTime){
-  let url = `https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=1m&limit=${limit}`;
-  if(endTime) url += `&endTime=${endTime}`;
-  const r = await fetch(url, {cf: {cacheTtl: 0}});
-  if(!r.ok) throw new Error(`Binance ${r.status}`);
-  return (await r.json()).map(k => ({t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5]}));
+// Binance 對 Cloudflare 機房 IP 回 451（地區封鎖），所以備妥多家交易所輪替。
+// 每家的分頁參數、排序、欄位順序都不一樣，這裡各自轉成統一格式：
+// 由舊到新的 [{t,o,h,l,c,v}]，t 是這根 K 的開始時間（毫秒）。
+// 實測（2026/09/02）：Cloudflare 出口 IP 被 Binance 擋 451、Bybit 擋 403，
+// Gate 與 OKX 通。Gate 每頁 1000 根所以排第一，OKX 每頁只有 100 根當備援。
+const SOURCES = [
+  {
+    name: "gate",
+    max: 1000,
+    url: (n, end) => `https://api.gateio.ws/api/v4/spot/candlesticks`
+       + `?currency_pair=${SYMBOL.replace("USDT","_USDT")}&interval=1m&limit=${n}`
+       + (end ? `&to=${Math.floor(end/1000)}` : ""),
+    // [t(秒), quoteVol, close, high, low, open, baseVol, closed]
+    parse: j => j.map(k => ({t:+k[0]*1000, o:+k[5], h:+k[3], l:+k[4], c:+k[2], v:+k[6]}))
+  },
+  {
+    name: "okx",
+    max: 100,
+    url: (n, end) => `https://www.okx.com/api/v5/market/history-candles`
+       + `?instId=${SYMBOL.replace("USDT","-USDT")}&bar=1m&limit=${n}`
+       + (end ? `&after=${end}` : ""),
+    parse: j => {
+      if(j.code !== "0") throw new Error(j.msg || "okx error");
+      return j.data
+        .map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
+        .reverse();                                   // okx 由新到舊
+    }
+  },
+  {
+    name: "binance",
+    max: 1000,
+    url: (n, end) => `https://data-api.binance.vision/api/v3/klines?symbol=${SYMBOL}`
+       + `&interval=1m&limit=${n}` + (end ? `&endTime=${end}` : ""),
+    parse: j => j.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
+  },
+  {
+    name: "binance-com",
+    max: 1000,
+    url: (n, end) => `https://api.binance.com/api/v3/klines?symbol=${SYMBOL}`
+       + `&interval=1m&limit=${n}` + (end ? `&endTime=${end}` : ""),
+    parse: j => j.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
+  },
+  {
+    name: "bybit",
+    max: 1000,
+    url: (n, end) => `https://api.bybit.com/v5/market/kline?category=spot&symbol=${SYMBOL}`
+       + `&interval=1&limit=${n}` + (end ? `&end=${end}` : ""),
+    parse: j => {
+      if(j.retCode !== 0) throw new Error(j.retMsg || "bybit error");
+      return j.result.list
+        .map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
+        .reverse();                                   // bybit 由新到舊
+    }
+  }
+];
+
+let SRC_OK = null;                 // 記住這次呼叫裡哪一家通
+
+async function tryOne(src, limit, endTime){
+  const n = Math.min(limit, src.max);
+  const r = await fetch(src.url(n, endTime), {cf:{cacheTtl:0}, headers:{accept:"application/json"}});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  const bars = src.parse(await r.json());
+  if(!bars.length || !isFinite(bars[0].c)) throw new Error("回傳格式不對或沒有資料");
+  return bars;
 }
+
+async function klines(limit, endTime){
+  const order = SRC_OK ? [SRC_OK, ...SOURCES.filter(s => s !== SRC_OK)] : SOURCES;
+  let last = "";
+  for(const src of order){
+    try{
+      const bars = await tryOne(src, limit, endTime);
+      SRC_OK = src;
+      return bars;
+    }catch(e){ last = `${src.name}: ${(e && e.message) || e}`; }
+  }
+  throw new Error(`所有資料源都失敗（最後：${last}）`);
+}
+
+// 一次把每家都試一遍，看誰從 Cloudflare 打得通
+async function probe(){
+  const out = {};
+  for(const src of SOURCES){
+    try{
+      const bars = await tryOne(src, 3, null);
+      const b = bars[bars.length-1];
+      out[src.name] = {ok:true, 每頁上限:src.max, 最後一根:tw(b.t), 收盤:b.c};
+    }catch(e){
+      out[src.name] = {ok:false, 錯誤:String((e && e.message) || e)};
+    }
+  }
+  return out;
+}
+
 function merge(oldBars, tail){
   if(!tail.length) return oldBars;
   const cut = tail[0].t;
@@ -230,10 +318,18 @@ export default {
   async scheduled(_event, env, ctx){ ctx.waitUntil(tick(env)); },
 
   async fetch(req, env){
-    const path = new URL(req.url).pathname;
+    const u = new URL(req.url);
+    const path = u.pathname;
+
+    // 有設 ADMIN_KEY 就一律要帶通關碼，免得別人拿網址亂打
+    // （每分鐘的 cron 走 scheduled，不經過這裡，不受影響）
+    if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY)
+      return new Response("Not found", {status: 404});
+
     try{
       if(path === "/bootstrap") return json(await bootstrap(env));
       if(path === "/run")       return json(await tick(env));
+      if(path === "/probe")     return json(await probe());
       if(path === "/test")      return json(await lineSend(env,
         "黃金訊號推播測試\n收到這則就代表設定成功，之後只有真的出訊號才會再吵你。"));
 
@@ -243,6 +339,8 @@ export default {
         bars: bars.length, need: KEEP,
         newest: bars.length ? tw(bars[bars.length - 1].t) : null,
         alerted: await env.STATE.get(K_ALERT),
+        source: SRC_OK ? SRC_OK.name : "尚未偵測",
+        locked: env.ADMIN_KEY ? "已上鎖" : "未上鎖：請設定 ADMIN_KEY",
         lineConfigured: !!env.LINE_TOKEN,
         mode: env.LINE_TO ? "push（指定對象）" : "broadcast（發給所有好友）"
       });

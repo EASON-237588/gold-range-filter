@@ -10,7 +10,7 @@ crons = ["* * * * *"]
 # 用 npx wrangler kv namespace create STATE 產生 id 後貼進來
 [[kv_namespaces]]
 binding = "STATE"
-id = "貼上你的_KV_namespace_id"
+id = "df63427b45a5403c8bf2f62f8cafee64"
 
 [vars]
 # 留空 = broadcast，發給這個官方帳號的所有好友（只有你自己加好友就等於只發給你）
