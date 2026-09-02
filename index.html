@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>黃金 Range Filter 即時儀表板</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="黃金訊號">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2331; --line:#2b3444;
@@ -82,7 +89,13 @@
     display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .panel h2 .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim2)}
 
-  #chartBox{position:relative;width:100%;flex:1;min-height:0}
+  #chartBox{position:relative;width:100%;flex:1;min-height:0;touch-action:none;cursor:grab}
+  .zoombar{position:absolute;top:6px;right:70px;display:flex;gap:4px;z-index:3}
+  .zoombar button{
+    width:28px;height:28px;padding:0;font-size:14px;line-height:1;
+    background:rgba(28,35,49,.85);border:1px solid var(--line);color:var(--dim);
+  }
+  .zoombar button:hover{color:var(--accent);border-color:var(--accent)}
   canvas{display:block;width:100%;height:100%;border-radius:5px}
   #tip{
     position:absolute;pointer-events:none;display:none;z-index:5;
@@ -159,6 +172,25 @@
     .sheet-box{left:50%;right:auto;transform:translateX(-50%);width:min(920px,92vw);
                bottom:4vh;border-radius:12px;border:1px solid var(--line)}
   }
+
+  /* ---- 訊號警報橫幅 ---- */
+  .alarm{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;justify-content:center;
+         padding:14px 12px;pointer-events:none}
+  .alarm-in{
+    pointer-events:auto;width:min(460px,100%);text-align:center;
+    background:var(--panel);border:2px solid var(--line);border-radius:12px;
+    padding:15px 16px 14px;box-shadow:0 14px 46px rgba(0,0,0,.6);
+    animation:alarmpulse 1.1s ease-in-out infinite;
+  }
+  .alarm-in.long{border-color:var(--up)}
+  .alarm-in.short{border-color:var(--down)}
+  @keyframes alarmpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.022)}}
+  .alarm-k{font-size:11px;letter-spacing:2px;color:var(--dim)}
+  .alarm-v{font-size:30px;font-weight:700;font-family:var(--mono);margin:3px 0 5px}
+  .alarm-in.long .alarm-v{color:var(--up)}
+  .alarm-in.short .alarm-v{color:var(--down)}
+  .alarm-s{font-size:12.5px;color:var(--dim);line-height:1.7;margin-bottom:11px}
+  .alarm-in button{width:100%;padding:10px}
 
   /* ---- 新聞跑馬燈 ---- */
   .ticker{
@@ -295,7 +327,14 @@
 
 <section class="chartcard">
   <h2>價格 × Range Filter 通道 <span class="tag" id="chartTag">—</span></h2>
-  <div id="chartBox"><canvas id="cv"></canvas><div id="tip"></div></div>
+  <div id="chartBox">
+    <canvas id="cv"></canvas><div id="tip"></div>
+    <div class="zoombar">
+      <button data-z="in" title="放大">＋</button>
+      <button data-z="out" title="縮小">－</button>
+      <button data-z="reset" title="還原全圖">⤢</button>
+    </div>
+  </div>
 </section>
 
 <nav class="tabbar">
@@ -307,6 +346,15 @@
 </nav>
 
 </div><!-- /.app -->
+
+<div class="alarm" id="alarmBox" hidden>
+  <div class="alarm-in" id="alarmIn">
+    <div class="alarm-k">訊號警報</div>
+    <div class="alarm-v" id="alarmDir">—</div>
+    <div class="alarm-s" id="alarmTxt">—</div>
+    <button class="primary" id="alarmStop">知道了（<span id="alarmSec">15</span>）</button>
+  </div>
+</div>
 
 <!-- ============ 彈出面板（不佔主畫面高度，主畫面永遠一頁） ============ -->
 
@@ -379,6 +427,10 @@
       <option value="900">每 15 分</option>
     </select>
   </label>
+  <label class="chk" title="偵測到新訊號時響 15 秒並跳出橫幅"><input type="checkbox" id="alarm" checked> 訊號警報</label>
+  <label class="chk" title="盤中訊號可能反悔，勾了就等那根 K 收完才響"><input type="checkbox" id="alarmClosed"> 只在收盤確認後才響</label>
+  <button id="alarmPerm">開啟系統通知</button>
+  <button id="alarmTest">測試警報</button>
   <button class="primary" id="refresh">立即更新</button>
   <button id="preset">預設值</button>
   <button id="orig">回到你的參數</button>
@@ -476,6 +528,25 @@
           所以一分鐘一次完全不吃力（一小時約 0.4MB）。訊號會不會變，看的是這一層。<br>
           <b>3. 完整重抓要手動</b>——按「立即更新」或改任何參數。20,000 根 11 分 K 要打約 330 個請求、
           解壓後約 50MB，所以永遠不自動做。</div>
+
+        <div class="warn"><b>訊號警報。</b>偵測到新訊號時會響 15 秒、震動、跳出橫幅，
+          並發一則系統通知（要先在參數設定按「開啟系統通知」）。
+          瀏覽器規定要有使用者動作才准出聲，所以<b>開頁後請先點畫面任一處</b>把音訊解鎖，
+          參數設定裡有「測試警報」可以確認會不會響。<br>
+          預設是<b>盤中就響</b>，橫幅會標明「尚未收盤（可能反轉）」。
+          不想被假訊號吵，勾「只在收盤確認後才響」，改成那根 K 收完才叫。
+          同一根 K 的訊號只會響一次，重新整理也不會再叫。</div>
+
+        <div class="warn"><b>App 關掉之後就叫不動你，這是做不到的。</b>
+          網頁沒有任何方法在自己被關閉的狀態下自動打開。能做到的最好情況是：
+          把這頁<b>加到主畫面</b>當 App 用、並允許系統通知，那麼在它還開著（就算在背景、螢幕關著）時，
+          通知會跳出來，<b>點一下通知就會回到這頁</b>。<br>
+          真的要「完全關掉也收得到」，需要另外架一台伺服器持續算訊號、用 Web Push 推給你
+          （iOS 還必須先加到主畫面）。那是另一個工程，這頁是純前端、沒有後端，做不到。
+          手機端也要注意：iOS 把瀏覽器切到背景後會凍結計時器，背景警報不可靠。</div>
+
+        <div class="warn"><b>主圖可以縮放。</b>滑鼠滾輪或右上角 ＋ － 放大縮小，
+          手機用兩指捏合；拖曳可以左右平移，雙擊或按 ⤢ 還原全圖。放大後價格軸會跟著只看可視範圍。</div>
 
         <div class="warn"><b>訊號會盤中反覆。</b>最後一根 K 線還沒收盤，
           所以訊號有可能盤中出現、收盤前又縮回去。要確認，看訊號歷史裡那筆的時間是不是已經過了一根 K 的長度。</div>
@@ -982,19 +1053,25 @@ function setupCanvas(cv){
 }
 
 let VIEW = null;
+const MINBARS = 40;                 // 最多放大到只剩 40 根
+let ZOOM = {span:null, off:0};      // span=null 代表全圖
 
 function drawChart(bars, R){
   const cv = $("cv");
   const {ctx, W, H} = setupCanvas(cv);
   ctx.clearRect(0,0,W,H);
 
-  const show = bars.length;
-  const s = 0;
+  // 可視區間由 ZOOM 決定：span = 顯示幾根，off = 右邊界離最新一根幾根
+  const total = bars.length;
+  const show = ZOOM.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(ZOOM.span)));
+  const off  = Math.max(0, Math.min(total - show, Math.round(ZOOM.off)));
+  const s = total - off - show;
+  const e = s + show;                       // 不含
   const PL = 8, PR = 66, PT = 12, PB = 24;
   const cw = W - PL - PR, ch = H - PT - PB;
 
   let lo = Infinity, hi = -Infinity;
-  for(let i=s;i<bars.length;i++){
+  for(let i=s;i<e;i++){
     lo = Math.min(lo, bars[i].l, R.lband[i]);
     hi = Math.max(hi, bars[i].h, R.hband[i]);
   }
@@ -1003,7 +1080,7 @@ function drawChart(bars, R){
   const X = i => PL + (i - s) / (show - 1) * cw;
   const Y = p => PT + (hi - p) / (hi - lo) * ch;
 
-  VIEW = {s, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
+  VIEW = {s, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
 
   // 格線 + 價格軸
   ctx.font = "11px ui-monospace,monospace";
@@ -1023,7 +1100,7 @@ function drawChart(bars, R){
   const nLab  = Math.max(2, Math.min(7, Math.floor(cw / labW)));
   const step  = Math.max(1, Math.ceil(show / nLab));
   let lastRight = -1e9;                       // 量過寬度才畫，硬性保證不疊字
-  for(let i=s; i<bars.length; i+=step){
+  for(let i=s; i<e; i+=step){
     const x = X(i);
     ctx.strokeStyle = "rgba(43,52,68,.35)";
     ctx.beginPath(); ctx.moveTo(x,PT); ctx.lineTo(x,PT+ch); ctx.stroke();
@@ -1041,8 +1118,8 @@ function drawChart(bars, R){
 
   // 通道填色
   ctx.beginPath();
-  for(let i=s;i<bars.length;i++){ const x=X(i),y=Y(R.hband[i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
-  for(let i=bars.length-1;i>=s;i--){ ctx.lineTo(X(i), Y(R.lband[i])); }
+  for(let i=s;i<e;i++){ const x=X(i),y=Y(R.hband[i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  for(let i=e-1;i>=s;i--){ ctx.lineTo(X(i), Y(R.lband[i])); }
   ctx.closePath();
   ctx.fillStyle = "rgba(120,144,156,.07)"; ctx.fill();
 
@@ -1050,19 +1127,19 @@ function drawChart(bars, R){
   ctx.lineWidth = 1; ctx.setLineDash([3,3]);
   for(const band of ["hband","lband"]){
     ctx.beginPath();
-    for(let i=s;i<bars.length;i++){ const x=X(i),y=Y(R[band][i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+    for(let i=s;i<e;i++){ const x=X(i),y=Y(R[band][i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
     ctx.strokeStyle = "rgba(120,144,156,.5)"; ctx.stroke();
   }
   ctx.setLineDash([]);
 
   // 價格線
   ctx.beginPath();
-  for(let i=s;i<bars.length;i++){ const x=X(i),y=Y(bars[i].c); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  for(let i=s;i<e;i++){ const x=X(i),y=Y(bars[i].c); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
   ctx.strokeStyle = "#c9d1d9"; ctx.lineWidth = 1.1; ctx.stroke();
 
   // 過濾線（依方向分段上色）
   ctx.lineWidth = 2.2; ctx.lineJoin = "round";
-  for(let i=s+1;i<bars.length;i++){
+  for(let i=s+1;i<e;i++){
     const col = R.upward[i]>0 ? "#ef5350" : R.downward[i]>0 ? "#26a69a" : "#78909c";
     ctx.beginPath();
     ctx.moveTo(X(i-1), Y(R.filt[i-1]));
@@ -1072,7 +1149,7 @@ function drawChart(bars, R){
 
   // 訊號箭頭
   for(const r of R.rows){
-    if(r.i < s) continue;
+    if(r.i < s || r.i >= e) continue;
     const x = X(r.i), b = bars[r.i];
     const up = r.dir > 0;
     const y = up ? Y(b.l) + 13 : Y(b.h) - 13;
@@ -1195,6 +1272,7 @@ async function run(refetch = true){
       + ($("session").checked ? "・剔除休市" : "・24/7");
     drawChart(BARS, R);
     if(sheetOpen("shStats")) drawEquity(BT);
+    checkAlarm(BARS, R);
 
     $("chartTag").textContent = `${SYMBOL} ・ ${TF} ・ ${BARS.length} 根`
       + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續");
@@ -1210,6 +1288,208 @@ async function run(refetch = true){
 }
 
 let LASTSPOT = null;
+
+/* ============ 訊號警報 ============ */
+const ALARM_SEC = 15, ALARM_KEY = "gold_rf_alerted";
+let AC = null, alarmBeat = null, alarmEnd = null, alarmCount = null;
+
+// 瀏覽器規定要有使用者動作才准出聲，第一次點畫面時把音訊解鎖
+function unlockAudio(){
+  try{
+    if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+    if(AC.state === "suspended") AC.resume();
+  }catch(e){}
+}
+document.addEventListener("pointerdown", unlockAudio, {once:false});
+
+function beep(dir){
+  if(!AC) return;
+  const t0 = AC.currentTime;
+  const notes = dir > 0 ? [880, 1320] : [1320, 880];   // 買進上行、賣出下行
+  notes.forEach((f, k)=>{
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = "square"; o.frequency.value = f;
+    const st = t0 + k * 0.2;
+    g.gain.setValueAtTime(0.0001, st);
+    g.gain.exponentialRampToValueAtTime(0.28, st + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, st + 0.18);
+    o.connect(g); g.connect(AC.destination);
+    o.start(st); o.stop(st + 0.2);
+  });
+}
+
+function stopAlarm(){
+  if(alarmBeat) clearInterval(alarmBeat);
+  if(alarmCount) clearInterval(alarmCount);
+  if(alarmEnd) clearTimeout(alarmEnd);
+  alarmBeat = alarmCount = alarmEnd = null;
+  $("alarmBox").hidden = true;
+}
+
+function fireAlarm(dir, price, when, confirmed){
+  unlockAudio();
+  const long = dir > 0;
+  $("alarmIn").className = "alarm-in " + (long ? "long" : "short");
+  $("alarmDir").textContent = long ? "▲ 買進訊號" : "▼ 賣出訊號";
+  $("alarmTxt").innerHTML =
+    `${TF} ${SYMBOL.replace("USDT","")}　${when}<br>訊號價 ${fmt(price)}　`
+    + (confirmed ? "<b>已收盤確認</b>" : "<b>盤中，尚未收盤（可能反轉）</b>");
+  $("alarmBox").hidden = false;
+
+  stopBeatOnly();
+  beep(dir);
+  alarmBeat = setInterval(()=> beep(dir), 1300);
+  try{ navigator.vibrate && navigator.vibrate([300,120,300]); }catch(e){}
+
+  let left = ALARM_SEC;
+  $("alarmSec").textContent = left;
+  alarmCount = setInterval(()=>{ $("alarmSec").textContent = Math.max(0, --left); }, 1000);
+  alarmEnd = setTimeout(stopAlarm, ALARM_SEC * 1000);
+
+  // 頁面在背景時改用系統通知；點通知會把這頁叫回前景
+  if("Notification" in window && Notification.permission === "granted"){
+    try{
+      const n = new Notification(`${long ? "▲ 買進" : "▼ 賣出"}　${SYMBOL.replace("USDT","")} ${TF}`,
+        {body:`${when}　訊號價 ${fmt(price)}\n${confirmed ? "已收盤確認" : "盤中，可能反轉"}`,
+         tag:"gold-rf-signal", renotify:true, requireInteraction:true});
+      n.onclick = ()=>{ window.focus(); n.close(); };
+    }catch(e){}
+  }
+}
+function stopBeatOnly(){ if(alarmBeat) clearInterval(alarmBeat); alarmBeat = null; }
+
+// 每次重算後檢查：只有「剛發生」而且沒響過的訊號才叫
+function checkAlarm(bars, R){
+  if(!$("alarm").checked) return;
+  const n = bars.length - 1;
+  const sig = R.rows.length ? R.rows[R.rows.length-1] : null;
+  if(!sig) return;
+  const age = n - sig.i;                       // 0 = 還在跑的那根
+  if(age > 2) return;                          // 舊訊號，開頁時不要吵
+  const confirmed = age >= 1;
+  if($("alarmClosed").checked && !confirmed) return;
+
+  const key = SYMBOL + "|" + TF + "|" + bars[sig.i].t;
+  let seen = null;
+  try{ seen = localStorage.getItem(ALARM_KEY); }catch(e){}
+  if(seen === key) return;
+  try{ localStorage.setItem(ALARM_KEY, key); }catch(e){}
+
+  fireAlarm(sig.dir, bars[sig.i].c, tsText(bars[sig.i].t), confirmed);
+}
+
+$("alarmStop").addEventListener("click", stopAlarm);
+$("alarmTest").addEventListener("click", ()=>{
+  fireAlarm(-1, BARS.length ? BARS[BARS.length-1].c : 4500,
+            tsText(Date.now()), false);
+});
+$("alarmPerm").addEventListener("click", async ()=>{
+  unlockAudio();
+  if(!("Notification" in window)){
+    showErr("<b>這個瀏覽器不支援系統通知。</b>警報聲與畫面橫幅仍然可用。"); return;
+  }
+  const r = await Notification.requestPermission();
+  $("alarmPerm").textContent = r === "granted" ? "系統通知已開啟" : "系統通知被拒絕";
+});
+
+/* ============ 圖表縮放與平移 ============ */
+function zoomState(){
+  const total = BARS.length;
+  const span = ZOOM.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(ZOOM.span)));
+  const off  = Math.max(0, Math.min(total - span, Math.round(ZOOM.off)));
+  return {total, span, off, s: total - off - span};
+}
+function redrawChart(){ if(LASTR && BARS.length) drawChart(BARS, LASTR); }
+
+// anchor01：0=畫面最左、1=最右。以該點為軸心縮放，手指按在哪就從哪放大
+function zoomTo(newSpan, anchor01){
+  const {total, span, s} = zoomState();
+  if(!total) return;
+  const at = s + anchor01 * (span - 1);
+  const ns = Math.max(MINBARS, Math.min(total, Math.round(newSpan)));
+  let s1 = Math.round(at - anchor01 * (ns - 1));
+  s1 = Math.max(0, Math.min(total - ns, s1));
+  ZOOM = {span: ns >= total ? null : ns, off: total - ns - s1};
+  redrawChart();
+}
+function zoomBy(f, anchor01 = 0.5){ zoomTo(zoomState().span * f, anchor01); }
+function panBars(d){
+  const {total, span, off} = zoomState();
+  if(span >= total) return;
+  ZOOM = {span, off: Math.max(0, Math.min(total - span, off + d))};
+  redrawChart();
+}
+function resetZoom(){ ZOOM = {span:null, off:0}; redrawChart(); }
+
+(function bindChartGestures(){
+  const box = $("chartBox");
+  const at01 = clientX => {
+    const r = box.getBoundingClientRect();
+    const PL = VIEW ? VIEW.PL : 8, PR = VIEW ? VIEW.PR : 66;
+    return Math.max(0, Math.min(1, (clientX - r.left - PL) / (r.width - PL - PR)));
+  };
+
+  box.addEventListener("wheel", ev=>{
+    ev.preventDefault();
+    zoomBy(ev.deltaY > 0 ? 1.18 : 1/1.18, at01(ev.clientX));
+  }, {passive:false});
+
+  box.addEventListener("dblclick", resetZoom);
+
+  // 滑鼠拖曳平移
+  let dragX = null;
+  box.addEventListener("mousedown", ev=>{ dragX = ev.clientX; box.style.cursor = "grabbing"; });
+  window.addEventListener("mouseup", ()=>{ dragX = null; box.style.cursor = ""; });
+  window.addEventListener("mousemove", ev=>{
+    if(dragX === null) return;
+    const {span} = zoomState();
+    const perPx = span / (box.getBoundingClientRect().width - 74);
+    const d = Math.round((dragX - ev.clientX) * perPx);
+    if(d){ panBars(-d); dragX = ev.clientX; }   // 往左拖看更早的資料
+  });
+
+  // 觸控：一指平移、兩指縮放
+  let t0 = null, pinch = null;
+  box.addEventListener("touchstart", ev=>{
+    if(ev.touches.length === 2){
+      pinch = {d: Math.abs(ev.touches[0].clientX - ev.touches[1].clientX) || 1,
+               span: zoomState().span,
+               a: at01((ev.touches[0].clientX + ev.touches[1].clientX)/2)};
+      t0 = null;
+    }else if(ev.touches.length === 1){
+      t0 = ev.touches[0].clientX; pinch = null;
+    }
+  }, {passive:true});
+
+  box.addEventListener("touchmove", ev=>{
+    if(pinch && ev.touches.length === 2){
+      ev.preventDefault();
+      const d = Math.abs(ev.touches[0].clientX - ev.touches[1].clientX) || 1;
+      zoomTo(pinch.span * (pinch.d / d), pinch.a);
+    }else if(t0 !== null && ev.touches.length === 1){
+      const {span, total} = zoomState();
+      if(span >= total) return;
+      ev.preventDefault();
+      const perPx = span / (box.getBoundingClientRect().width - 74);
+      const dx = t0 - ev.touches[0].clientX;
+      const d = Math.round(dx * perPx);
+      if(d){ panBars(-d); t0 = ev.touches[0].clientX; }
+    }
+  }, {passive:false});
+
+  box.addEventListener("touchend", ev=>{
+    if(ev.touches.length === 0){ t0 = null; pinch = null; }
+  }, {passive:true});
+
+  document.querySelectorAll("[data-z]").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      const k = b.dataset.z;
+      if(k === "in")  zoomBy(1/1.6);
+      if(k === "out") zoomBy(1.6);
+      if(k === "reset") resetZoom();
+    });
+  });
+})();
 
 /* ============ 底部分頁與彈出面板 ============ */
 function sheetOpen(id){ return $(id).classList.contains("open"); }
@@ -1374,7 +1654,12 @@ window.addEventListener("resize", ()=>{
 });
 
 run(true).then(()=>{ resetTimer(); resetLive(); });
-$("verTag").textContent = "版本 002・單頁版";
+$("verTag").textContent = "版本 003・單頁版";
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
+}
+if("Notification" in window && Notification.permission === "granted")
+  $("alarmPerm").textContent = "系統通知已開啟";
 loadNews();
 setInterval(loadNews, 600000);   // 新聞 10 分鐘換一次
 </script>
