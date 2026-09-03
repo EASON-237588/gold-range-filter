@@ -98,22 +98,24 @@
      拆開的好處是方向那格永遠在同一個位置，不會被右邊的字數推著跑。 */
   .sigrow{display:flex;gap:8px;flex:none;align-items:stretch}
   .sigcap{
-    background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    padding:6px 13px;display:flex;flex-direction:column;justify-content:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:7px;
+    padding:3px 11px;display:flex;flex-direction:column;justify-content:center;
   }
-  .sigcap.dir{flex:none;gap:1px}
-  .sigcap.det{flex:1;min-width:0;gap:3px;overflow:hidden}
-  .sigline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;line-height:1.4}
+  .sigcap.dir{flex:none;gap:0}
+  .sigcap.det{flex:1;min-width:0;gap:0;overflow:hidden}
+  .sigline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;line-height:1.32}
   .sigmeta{font-family:var(--mono);font-size:11px;color:var(--dim2);white-space:nowrap}
   .sigcap.long{border-color:var(--up);background:linear-gradient(180deg,rgba(255,59,59,.15),transparent)}
   .sigcap.short{border-color:var(--down);background:linear-gradient(180deg,rgba(76,255,0,.13),transparent)}
   .sigcap .k{font-size:11px;color:var(--dim);letter-spacing:.6px;flex:none}
-  .sigcap .v{font-size:25px;font-weight:700;font-family:var(--mono);flex:none;white-space:nowrap}
+  .sigcap .v{font-size:22px;font-weight:700;font-family:var(--mono);flex:none;
+             white-space:nowrap;line-height:1.15}
   .sigcap .tf{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;
               border:1px solid var(--line);color:var(--dim);flex:none}
 
   .chartbox{position:relative;width:100%;flex:1;min-height:0;touch-action:none;cursor:grab}
-  .zoombar{position:absolute;top:6px;right:70px;display:flex;gap:4px;z-index:3}
+  /* 放左上：右邊是價格軸，按鈕擺那裡會壓到刻度 */
+  .zoombar{position:absolute;top:6px;left:8px;display:flex;gap:4px;z-index:3}
   .zoombar button{
     width:34px;height:34px;padding:0;font-size:17px;line-height:1;
     background:rgba(28,35,49,.9);border:1px solid var(--line);color:var(--dim);
@@ -285,7 +287,7 @@
 
   /* ---- 手機直向：卡片式堆疊 ---- */
   @media(max-width:780px) and (orientation:portrait){
-    /* 固定 2×2：現價｜現貨　／　最近訊號｜持倉狀態 */
+    /* 上排只剩現價｜現貨兩張，訊號與持倉已經移到各策略自己的膠囊 */
     .grid{grid-template-columns:repeat(2,1fr)}
     .grid .card .s{font-size:9.5px;line-height:1.45}
 
@@ -329,8 +331,8 @@
     .strat{gap:5px}
     .sigrow{gap:5px}
     .sigrow{gap:6px}
-    .sigcap{padding:5px 9px}
-    .sigcap .v{font-size:19px}
+    .sigcap{padding:2px 8px}
+    .sigcap .v{font-size:18px}
     .sigline{gap:6px}
     .sigmeta{font-size:9.5px}
     .tabbar{padding:5px 0 calc(5px + env(safe-area-inset-bottom,0px))}
@@ -368,7 +370,7 @@
 <section class="strat">
   <div class="sigrow" id="sigA">
     <div class="sigcap dir">
-      <div class="sigline"><span class="k">最近訊號</span><span class="tf">11 分</span></div>
+      <div class="sigline"><span class="tf">11 分</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -389,7 +391,7 @@
 <section class="strat">
   <div class="sigrow" id="sigB">
     <div class="sigcap dir">
-      <div class="sigline"><span class="k">最近訊號</span><span class="tf">2 分</span></div>
+      <div class="sigline"><span class="tf">2 分</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -1016,7 +1018,7 @@ function renderTopCards(bars, spot){
   $("beat").hidden = !$("live").checked;
 }
 
-/* 每套策略一個訊號盒：最近訊號與持倉都掛在這裡，
+/* 每套策略一列兩個膠囊：左邊方向、右邊細節與持倉，
    兩者的浮動數字要能被每秒現價更新，所以 id 要帶上策略代號。 */
 function renderSigBox(p){
   const bars = p.bars, R = p.R, BT = p.BT, k = p.k;
@@ -1046,8 +1048,7 @@ function renderSigBox(p){
 
   $("sig" + k).innerHTML =
     `<div class="sigcap dir${tone}">`
-    + `<div class="sigline"><span class="k">最近訊號</span>`
-    + `<span class="tf">${tfLabel(p.tf)}</span></div>${big}</div>`
+    + `<div class="sigline"><span class="tf">${tfLabel(p.tf)}</span></div>${big}</div>`
     + `<div class="sigcap det${tone}">`
     + `<div class="sigline">${line1}</div><div class="sigline">${line2}</div></div>`;
 
