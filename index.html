@@ -92,7 +92,21 @@
     display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .panel h2 .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim2)}
 
-  #chartBox{position:relative;width:100%;flex:1;min-height:0;touch-action:none;cursor:grab}
+  /* 一頁塞兩套策略：每套是「訊號盒 + 圖」，各自吃掉一半高度 */
+  .strat{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+  .sigbox{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:9px 14px;flex:none;
+  }
+  .sigbox.long{border-color:var(--up);background:linear-gradient(180deg,rgba(255,59,59,.15),transparent)}
+  .sigbox.short{border-color:var(--down);background:linear-gradient(180deg,rgba(76,255,0,.13),transparent)}
+  .sigbox .k{font-size:11px;color:var(--dim);letter-spacing:.6px}
+  .sigbox .v{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1.15;margin:1px 0 2px}
+  .sigbox .s{font-size:11px;color:var(--dim2);font-family:var(--mono);line-height:1.5}
+  .sigbox .tf{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;
+              border:1px solid var(--line);color:var(--dim);margin-left:7px;vertical-align:2px}
+
+  .chartbox{position:relative;width:100%;flex:1;min-height:0;touch-action:none;cursor:grab}
   .zoombar{position:absolute;top:6px;right:70px;display:flex;gap:4px;z-index:3}
   .zoombar button{
     width:28px;height:28px;padding:0;font-size:14px;line-height:1;
@@ -100,12 +114,15 @@
   }
   .zoombar button:hover{color:var(--accent);border-color:var(--accent)}
   canvas{display:block;width:100%;height:100%;border-radius:5px}
-  #lv{position:absolute;inset:0;pointer-events:none}
-  #tip{
+  .lv{position:absolute;inset:0;pointer-events:none}
+  .tip{
     position:absolute;pointer-events:none;display:none;z-index:5;
     background:rgba(13,17,23,.95);border:1px solid var(--line);border-radius:5px;
     padding:7px 10px;font-size:11.5px;font-family:var(--mono);white-space:pre;line-height:1.65;
   }
+  .stratHd{font-size:12px;font-weight:600;color:var(--accent);letter-spacing:.6px;
+           margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .stratHd:first-child{margin-top:0}
   .legend{display:flex;gap:15px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:9px;flex:none}
   .legend i{display:inline-block;width:15px;height:2.5px;vertical-align:middle;margin-right:5px;border-radius:2px}
 
@@ -302,7 +319,11 @@
     .chartcard{padding:7px 9px}
     .chartcard h2{display:none}      /* 資訊在頁首已經有了 */
     .legend{display:none}
-    #chartBox{min-height:100px}
+    .chartbox{min-height:100px}
+    .strat{gap:5px}
+    .sigbox{padding:6px 10px}
+    .sigbox .v{font-size:20px}
+    .sigbox .s{font-size:9.5px;line-height:1.4}
     .tabbar{padding:5px 0 calc(5px + env(safe-area-inset-bottom,0px))}
     .tab{padding:6px 2px;font-size:10.5px}
     .sheet-box{max-height:94dvh}
@@ -335,14 +356,36 @@
   </div>
 </div>
 
-<section class="chartcard">
-  <h2>價格 × Range Filter 通道 <span class="tag" id="chartTag">—</span></h2>
-  <div id="chartBox">
-    <canvas id="cv"></canvas><canvas id="lv"></canvas><div id="tip"></div>
-    <div class="zoombar">
-      <button data-z="in" title="放大">＋</button>
-      <button data-z="out" title="縮小">－</button>
-      <button data-z="reset" title="還原全圖">⤢</button>
+<section class="strat">
+  <div class="sigbox" id="sigA"><div class="k">最近訊號<span class="tf" id="tfTagA">11 分</span></div>
+    <div class="v mid">—</div><div class="s">載入中…</div></div>
+  <div class="chartcard">
+    <h2>價格 × Range Filter 通道 <span class="tag" id="chartTagA">—</span></h2>
+    <div class="chartbox" id="chartBoxA">
+      <canvas id="cvA"></canvas><canvas class="lv" id="lvA"></canvas>
+      <div class="tip" id="tipA"></div>
+      <div class="zoombar">
+        <button data-p="A" data-z="in" title="放大">＋</button>
+        <button data-p="A" data-z="out" title="縮小">－</button>
+        <button data-p="A" data-z="reset" title="還原全圖">⤢</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="strat">
+  <div class="sigbox" id="sigB"><div class="k">最近訊號<span class="tf" id="tfTagB">2 分</span></div>
+    <div class="v mid">—</div><div class="s">載入中…</div></div>
+  <div class="chartcard">
+    <h2>價格 × Range Filter 通道 <span class="tag" id="chartTagB">—</span></h2>
+    <div class="chartbox" id="chartBoxB">
+      <canvas id="cvB"></canvas><canvas class="lv" id="lvB"></canvas>
+      <div class="tip" id="tipB"></div>
+      <div class="zoombar">
+        <button data-p="B" data-z="in" title="放大">＋</button>
+        <button data-p="B" data-z="out" title="縮小">－</button>
+        <button data-p="B" data-z="reset" title="還原全圖">⤢</button>
+      </div>
     </div>
   </div>
 </section>
@@ -381,13 +424,28 @@
       <option value="XAUTUSDT">XAUT/USDT（Tether Gold・有量）</option>
     </select>
   </label>
-  <label>週期
-    <select id="tf">
+  <label>上方週期
+    <select id="tfA">
       <option value="1m">1 分</option>
       <option value="2m">2 分 ✦</option>
       <option value="3m">3 分</option>
       <option value="5m">5 分</option>
       <option value="11m" selected>11 分 ✦</option>
+      <option value="15m">15 分</option>
+      <option value="30m">30 分</option>
+      <option value="1h">1 小時</option>
+      <option value="2h">2 小時</option>
+      <option value="4h">4 小時</option>
+      <option value="1d">日線</option>
+    </select>
+  </label>
+  <label>下方週期
+    <select id="tfB">
+      <option value="1m">1 分</option>
+      <option value="2m" selected>2 分 ✦</option>
+      <option value="3m">3 分</option>
+      <option value="5m">5 分</option>
+      <option value="11m">11 分 ✦</option>
       <option value="15m">15 分</option>
       <option value="30m">30 分</option>
       <option value="1h">1 小時</option>
@@ -418,8 +476,11 @@
       <option value="hlc3">(H+L+C)/3</option>
     </select>
   </label>
-  <label>取樣週期 <input type="number" id="per" value="300" min="1"></label>
-  <label>範圍乘數 <input type="number" id="mult" value="23" min="0.1" step="0.5"></label>
+  <label>上方取樣週期 <input type="number" id="perA" value="300" min="1"></label>
+  <label>上方範圍乘數 <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
+  <div class="sep"></div>
+  <label>下方取樣週期 <input type="number" id="perB" value="300" min="1"></label>
+  <label>下方範圍乘數 <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
     <input type="number" id="cost" value="0.05" step="0.01" min="0"></label>
@@ -457,10 +518,17 @@
     <div class="sheet-h"><h3>訊號歷史</h3><span class="tag" id="sigTag">—</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
+      <h4 class="stratHd" id="sigHdA">上方策略</h4>
       <div class="tblwrap">
         <table><thead><tr>
           <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
-        </tr></thead><tbody id="sigBody"></tbody></table>
+        </tr></thead><tbody id="sigBodyA"></tbody></table>
+      </div>
+      <h4 class="stratHd" id="sigHdB">下方策略</h4>
+      <div class="tblwrap">
+        <table><thead><tr>
+          <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
+        </tr></thead><tbody id="sigBodyB"></tbody></table>
       </div>
     </div>
   </div>
@@ -472,10 +540,17 @@
     <div class="sheet-h"><h3>訊號績效統計</h3><span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
-      <div class="stats" id="stats"></div>
+      <h4 class="stratHd" id="statHdA">上方策略</h4>
+      <div class="stats" id="statsA"></div>
       <div style="margin-top:12px">
         <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
-        <div class="eqbox"><canvas id="eq"></canvas></div>
+        <div class="eqbox"><canvas id="eqA"></canvas></div>
+      </div>
+      <h4 class="stratHd" id="statHdB">下方策略</h4>
+      <div class="stats" id="statsB"></div>
+      <div style="margin-top:12px">
+        <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
+        <div class="eqbox"><canvas id="eqB"></canvas></div>
       </div>
     </div>
   </div>
@@ -779,7 +854,20 @@ function backtest(bars, R, P){
 }
 
 /* ============ 取資料 ============ */
-let BARS = [], RAW = [], SYMBOL = "", TF = "";
+let RAW1M = [], SYMBOL = "";
+
+// 畫面預設只顯示最近這麼多根；統計與訊號仍用全部根數，要看更早的自己縮小
+const VIEW_BARS = 2000;
+
+/* 兩套策略共用同一份行情，只是聚合成不同週期。
+   A 是慢的（預設 11 分），B 是快的（預設 2 分）。 */
+const PANELS = [
+  {k:"A", label:"上方", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
+   ZOOM:{span:VIEW_BARS, off:0}, LIVE:null},
+  {k:"B", label:"下方", tf:"2m",  bars:[], R:null, BT:null, VIEW:null,
+   ZOOM:{span:VIEW_BARS, off:0}, LIVE:null},
+];
+const PAN = k => PANELS.find(p => p.k === k);
 
 // 黃金現貨交易時段（UTC）：週日 22:00 開盤 → 週五 21:00 收盤，每日 21:00-22:00 休息。
 // PAXG 是 24/7 交易，不剔除的話就沒有週末跳空，smoothrng 會偏小、通道偏窄、訊號暴增，
@@ -792,8 +880,8 @@ function goldOpen(t){
   if(h === 21) return false;                // 每日休息一小時
   return true;
 }
-function applySession(){
-  BARS = $("session").checked ? RAW.filter(b => goldOpen(b.t)) : RAW.slice();
+function applySession(bars){
+  return $("session").checked ? bars.filter(b => goldOpen(b.t)) : bars.slice();
 }
 
 // Binance 原生支援的區間；2m 與 11m 不在其中，需由 1m 聚合
@@ -842,16 +930,19 @@ function aggregate(bars1m, minutes){
   return out;
 }
 
-async function fetchBars(sym, tf, limit, onProgress){
-  if(NATIVE_TF.has(tf)) return await fetchRaw(sym, tf, limit, onProgress);
-
-  const mins = CUSTOM_TF[tf];
-  if(!mins) throw new Error(`不支援的週期 ${tf}`);
-  // 多抓一點 1m 資料，確保聚合後根數足夠（首尾桶可能不完整）
-  const need1m = limit * mins + mins * 2;
-  const raw1m = await fetchRaw(sym, "1m", need1m, onProgress);
-  const agg = aggregate(raw1m, mins);
-  return agg.slice(-limit);
+/* 11 分與 2 分都是由 1 分線聚合出來的，而 2 分需要的 1 分資料是 11 分那份的子集合。
+   所以只抓一次「最長的那個」，兩邊共用——否則等於把最慢的那步做兩遍。 */
+async function fetchAll(limit, onProgress){
+  const custom = PANELS.filter(p => !NATIVE_TF.has(p.tf));
+  if(custom.length){
+    const need = Math.max(...custom.map(p => limit * CUSTOM_TF[p.tf] + CUSTOM_TF[p.tf] * 2));
+    RAW1M = await fetchRaw(SYMBOL, "1m", need, onProgress);
+  }
+  for(const p of PANELS){
+    p.raw = NATIVE_TF.has(p.tf)
+      ? await fetchRaw(SYMBOL, p.tf, limit, onProgress)
+      : aggregate(RAW1M, CUSTOM_TF[p.tf]);
+  }
 }
 
 async function fetchSpot(){
@@ -864,11 +955,11 @@ async function fetchSpot(){
 }
 
 /* ============ 讀參數 ============ */
-function readParams(){
+function readParams(p){
   return {
     srcMode: $("srcSel").value,
-    per: Math.max(1, +$("per").value || 100),
-    mult: Math.max(0.1, +$("mult").value || 23),
+    per: Math.max(1, +$("per" + p.k).value || 100),
+    mult: Math.max(0.1, +$("mult" + p.k).value || 23),
     atrLen: 12, atrMult: 1.5, volLen: 20,
     useVol: false, useAtr2: false, longOnly: false,
     cost: Math.max(0, +$("cost").value || 0)
@@ -876,43 +967,16 @@ function readParams(){
 }
 
 /* ============ 卡片 ============ */
-function renderCards(bars, R, BT, spot, P){
+function tfLabel(tf){
+  const m = tf.match(/^(\d+)([mhd])$/);
+  return m ? m[1] + (m[2]==="h" ? " 小時" : m[2]==="d" ? " 日" : " 分") : tf;
+}
+
+// 上排兩張卡是兩套策略共用的行情，與策略無關
+function renderTopCards(bars, spot){
   const n = bars.length - 1;
   const last = bars[n], prev = bars[n-1];
   const chg = (last.c/prev.c - 1) * 100;
-  const dirUp = R.upward[n] > 0, dirDn = R.downward[n] > 0;
-  const dirTxt = dirUp ? "多方" : dirDn ? "空方" : "中性";
-  const dirCls = dirUp ? "up" : dirDn ? "down" : "mid";
-
-  // 距離上下軌
-  const toH = (R.hband[n]/last.c - 1) * 100;
-  const toL = (R.lband[n]/last.c - 1) * 100;
-
-  // 最近訊號
-  const lastSig = R.rows.length ? R.rows[R.rows.length-1] : null;
-  let sigCard = `<div class="card wide"><div class="k">最近訊號</div><div class="v mid">無</div>
-     <div class="s">目前參數下區間內未觸發</div></div>`;
-  if(lastSig){
-    const sb = bars[lastSig.i];
-    const ago = n - lastSig.i;
-    const since = (last.c/sb.c - 1) * 100 * lastSig.dir;
-    sigCard = `<div class="card signal ${lastSig.dir>0?"long":"short"}">
-      <div class="k">最近訊號</div>
-      <div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>
-      <div class="s">${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}<br>
-        訊號後至今 <span id="sigSince" class="${since>=0?"up":"down"}">${pct(since)}</span></div></div>`;
-  }
-
-  const held = BT.open;
-  const heldPct = held ? (held.dir>0 ? (last.c/held.entry-1) : (held.entry/last.c-1))*100 : null;
-  const heldCard = held ? `<div class="card signal ${held.dir>0?"long":"short"}">
-      <div class="k">持倉狀態</div>
-      <div class="v ${held.dir>0?"up":"down"}">${held.dir>0?"多單":"空單"}</div>
-      <div class="s">進場 ${fmt(held.entry)}　浮動
-        <span id="heldFloat" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span></div></div>`
-    : `<div class="card wide"><div class="k">持倉狀態</div><div class="v mid">空手</div>
-      <div class="s">等待下一個訊號</div></div>`;
-
   $("cards").innerHTML = `
     <div class="card">
       <div class="k">現價（${SYMBOL.replace("USDT","")}）<span id="beat" class="beat" hidden></span></div>
@@ -923,48 +987,80 @@ function renderCards(bars, R, BT, spot, P){
       <div class="k">現貨黃金 XAU/USD</div>
       <div id="spotNow" class="v gold">${spot!=null?fmt(spot):"—"}</div>
       <div id="spotSub" class="s">${spot!=null ? "代幣溢價 "+pct((last.c/spot-1)*100) : "報價源暫無回應"}</div>
-    </div>
-    ${sigCard}
-    ${heldCard}`;
-
-  // 供「每秒只更新現價」使用：記下算過一次的基準，之後就不必再重算指標
-  LIVE = {
-    prevClose: prev.c,
-    barTime  : tsText(last.t),
-    sigPrice : lastSig ? bars[lastSig.i].c : null,
-    sigDir   : lastSig ? lastSig.dir : 0,
-    entry    : held ? held.entry : null,
-    heldDir  : held ? held.dir : 0
-  };
+    </div>`;
+  TOPLIVE = {prevClose: prev.c, barTime: tsText(last.t)};
   $("beat").hidden = !$("live").checked;
 }
 
+/* 每套策略一個訊號盒：最近訊號與持倉都掛在這裡，
+   兩者的浮動數字要能被每秒現價更新，所以 id 要帶上策略代號。 */
+function renderSigBox(p){
+  const bars = p.bars, R = p.R, BT = p.BT, k = p.k;
+  const n = bars.length - 1, last = bars[n];
+  const lastSig = R.rows.length ? R.rows[R.rows.length-1] : null;
+  const held = BT.open;
+
+  let cls = "sigbox";
+  let v = `<div class="v mid">無訊號</div>`;
+  let s = "目前參數下區間內未觸發";
+
+  if(lastSig){
+    const sb = bars[lastSig.i], ago = n - lastSig.i;
+    const since = (last.c/sb.c - 1) * 100 * lastSig.dir;
+    cls += lastSig.dir > 0 ? " long" : " short";
+    v = `<div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>`;
+    s = `${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}　`
+      + `訊號後至今 <span id="sigSince${k}" class="${since>=0?"up":"down"}">${pct(since)}</span>`;
+  }
+
+  const heldPct = held ? (held.dir>0 ? (last.c/held.entry-1) : (held.entry/last.c-1))*100 : null;
+  s += held
+    ? `<br>持倉 ${held.dir>0?"多單":"空單"}　進場 ${fmt(held.entry)}　浮動 `
+      + `<span id="heldFloat${k}" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span>`
+    : `<br>持倉 空手　等待下一個訊號`;
+
+  const box = $("sig" + k);
+  box.className = cls;
+  box.innerHTML = `<div class="k">最近訊號<span class="tf">${tfLabel(p.tf)}</span></div>`
+                + v + `<div class="s">${s}</div>`;
+
+  p.LIVE = {
+    sigPrice: lastSig ? bars[lastSig.i].c : null,
+    sigDir  : lastSig ? lastSig.dir : 0,
+    entry   : held ? held.entry : null,
+    heldDir : held ? held.dir : 0
+  };
+}
+
 /* ---- 每秒只更新現價：一支 ticker API，不碰指標、統計與圖 ---- */
-let LIVE = null, LIVEPX = null, liveTimer = null, spotTick = 0, liveFail = 0;
+let TOPLIVE = null, LIVEPX = null, liveTimer = null, spotTick = 0, liveFail = 0;
 
 function applyLivePrice(px){
-  if(!LIVE || !Number.isFinite(px) || !$("pxNow")) return;
+  if(!TOPLIVE || !Number.isFinite(px) || !$("pxNow")) return;
   LIVEPX = px;
-  const chg = (px/LIVE.prevClose - 1) * 100;
+  const chg = (px/TOPLIVE.prevClose - 1) * 100;
   const el = $("pxNow");
   el.textContent = fmt(px);
   el.className = "v " + (chg>=0 ? "up" : "down");
-  $("pxSub").innerHTML = `本根 ${pct(chg)}　${LIVE.barTime}`;
+  $("pxSub").innerHTML = `本根 ${pct(chg)}　${TOPLIVE.barTime}`;
 
   if(LASTSPOT != null && $("spotSub"))
     $("spotSub").textContent = "代幣溢價 " + pct((px/LASTSPOT - 1) * 100);
 
-  const sc = $("sigSince");
-  if(sc && LIVE.sigPrice){
-    const v = (px/LIVE.sigPrice - 1) * 100 * LIVE.sigDir;
-    sc.textContent = pct(v); sc.className = v>=0 ? "up" : "down";
+  for(const p of PANELS){
+    if(!p.LIVE) continue;
+    const sc = $("sigSince" + p.k);
+    if(sc && p.LIVE.sigPrice){
+      const v = (px/p.LIVE.sigPrice - 1) * 100 * p.LIVE.sigDir;
+      sc.textContent = pct(v); sc.className = v>=0 ? "up" : "down";
+    }
+    const hf = $("heldFloat" + p.k);
+    if(hf && p.LIVE.entry){
+      const v = (p.LIVE.heldDir>0 ? (px/p.LIVE.entry-1) : (p.LIVE.entry/px-1)) * 100;
+      hf.textContent = pct(v); hf.className = v>=0 ? "up" : "down";
+    }
+    drawLive(p);
   }
-  const hf = $("heldFloat");
-  if(hf && LIVE.entry){
-    const v = (LIVE.heldDir>0 ? (px/LIVE.entry-1) : (LIVE.entry/px-1)) * 100;
-    hf.textContent = pct(v); hf.className = v>=0 ? "up" : "down";
-  }
-  drawLive();
 }
 
 async function tickPrice(){
@@ -998,16 +1094,16 @@ function resetLive(){
 }
 
 /* ============ 訊號表 ============ */
-function renderSignals(bars, R){
-  const n = bars.length - 1;
+function renderSignals(p){
+  const bars = p.bars, R = p.R, n = bars.length - 1;
   const rows = R.rows.slice().reverse();
-  $("sigTag").textContent = `${R.rows.length} 筆・共 ${bars.length} 根 K 線`;
+  $("sigHd" + p.k).textContent = `${p.label}策略・${tfLabel(p.tf)}・${R.rows.length} 筆訊號`;
   if(!rows.length){
-    $("sigBody").innerHTML = `<tr><td colspan="5" style="color:var(--dim2);padding:16px">
+    $("sigBody" + p.k).innerHTML = `<tr><td colspan="5" style="color:var(--dim2);padding:16px">
       目前參數下沒有訊號。範圍乘數越大訊號越稀少——試著把乘數調到 4~8 看看。</td></tr>`;
     return;
   }
-  $("sigBody").innerHTML = rows.map(r=>{
+  $("sigBody" + p.k).innerHTML = rows.map(r=>{
     const b = bars[r.i];
     const chg = (bars[n].c/b.c - 1) * 100 * r.dir;
     return `<tr>
@@ -1021,24 +1117,26 @@ function renderSignals(bars, R){
 }
 
 /* ============ 統計 ============ */
-function tfMinutes(){
-  const m = TF.match(/^(\d+)([mhd])$/);
+function tfMinutes(tf){
+  const m = tf.match(/^(\d+)([mhd])$/);
   if(!m) return 1;
   return +m[1] * (m[2]==="h" ? 60 : m[2]==="d" ? 1440 : 1);
 }
-function heldText(bars){
+function heldText(bars, tf){
   if(bars==null) return "—";
-  const h = bars * tfMinutes() / 60;
+  const h = bars * tfMinutes(tf) / 60;
   return h >= 48 ? (h/24).toFixed(1)+" 天" : h.toFixed(1)+" 小時";
 }
 
-function renderStats(BT, P){
+function renderStats(p){
+  const BT = p.BT, P = p.P;
+  $("statHd" + p.k).textContent = `${p.label}策略・${tfLabel(p.tf)}`;
   const s = (k,v,cls="",sub="") => `<div class="stat"><div class="k">${k}</div>
      <div class="v ${cls}">${v}</div>${sub?`<div class="k" style="margin:3px 0 0">${sub}</div>`:""}</div>`;
   // 成本吃掉毛利的比例——用來判斷這組參數是不是靠過度交易堆出來的
   const eaten = BT.gross>0 ? BT.costDrag/BT.gross*100 : null;
-  $("stats").innerHTML =
-    s("完成交易", BT.total, "", BT.avgHeld!=null ? "平均持倉 "+heldText(BT.avgHeld) : "") +
+  $("stats" + p.k).innerHTML =
+    s("完成交易", BT.total, "", BT.avgHeld!=null ? "平均持倉 "+heldText(BT.avgHeld, p.tf) : "") +
     s("勝率", BT.winRate!=null ? BT.winRate.toFixed(1)+"%" : "—",
         BT.winRate==null?"":(BT.winRate>=50?"up":"down")) +
     s("獲利因子", BT.pf==null ? "—" : (BT.pf===Infinity ? "∞" : BT.pf.toFixed(2)),
@@ -1066,19 +1164,19 @@ function setupCanvas(cv){
 }
 
 const C_UP = "#ff3b3b", C_DN = "#4cff00", C_LIVE = "#00d4ff";
-let VIEW = null;
 const MINBARS = 40;                 // 最多放大到只剩 40 根
-let ZOOM = {span:null, off:0};      // span=null 代表全圖
 
-function drawChart(bars, R){
-  const cv = $("cv");
+function drawChart(p){
+  const bars = p.bars, R = p.R;
+  const cv = $("cv" + p.k);
   const {ctx, W, H} = setupCanvas(cv);
   ctx.clearRect(0,0,W,H);
 
-  // 可視區間由 ZOOM 決定：span = 顯示幾根，off = 右邊界離最新一根幾根
+  // 可視區間由該策略自己的 ZOOM 決定：span = 顯示幾根，off = 右邊界離最新一根幾根
   const total = bars.length;
-  const show = ZOOM.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(ZOOM.span)));
-  const off  = Math.max(0, Math.min(total - show, Math.round(ZOOM.off)));
+  const Z = p.ZOOM;
+  const show = Z.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(Z.span)));
+  const off  = Math.max(0, Math.min(total - show, Math.round(Z.off)));
   const s = total - off - show;
   const e = s + show;                       // 不含
   const PL = 8, PR = 54, PT = 12, PB = 24;
@@ -1094,7 +1192,7 @@ function drawChart(bars, R){
   const X = i => PL + (i - s) / (show - 1) * cw;
   const Y = p => PT + (hi - p) / (hi - lo) * ch;
 
-  VIEW = {s, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
+  p.VIEW = {s, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
 
   // 格線 + 價格軸
   ctx.font = "11px ui-monospace,monospace";
@@ -1174,18 +1272,18 @@ function drawChart(bars, R){
     ctx.fillStyle = up ? C_UP : C_DN; ctx.fill();
     ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1; ctx.stroke();
   }
-  drawLive();
+  drawLive(p);
 }
 
 /* 即時現價線：畫在另一張疊圖上，每秒更新只重畫這一條，不動主圖 */
-function drawLive(){
-  const cv = $("lv");
-  if(!cv || !VIEW) return;
+function drawLive(p){
+  const cv = $("lv" + p.k);
+  if(!cv || !p.VIEW) return;
   const {ctx, W, H} = setupCanvas(cv);
   ctx.clearRect(0, 0, W, H);
-  const px = LIVEPX != null ? LIVEPX : (BARS.length ? BARS[BARS.length-1].c : null);
+  const px = LIVEPX != null ? LIVEPX : (p.bars.length ? p.bars[p.bars.length-1].c : null);
   if(px == null) return;
-  const {Y, PL, PR, lo, hi} = VIEW;
+  const {Y, PL, PR, lo, hi} = p.VIEW;
   if(px < lo || px > hi) return;              // 超出可視價格範圍就不畫
   const y = Y(px);
 
@@ -1206,8 +1304,9 @@ function drawLive(){
   ctx.textAlign = "left";
 }
 
-function drawEquity(BT){
-  const cv = $("eq");
+function drawEquity(p){
+  const BT = p.BT;
+  const cv = $("eq" + p.k);
   const {ctx, W, H} = setupCanvas(cv);
   ctx.clearRect(0,0,W,H);
   const c = BT.curve;
@@ -1236,29 +1335,30 @@ function drawEquity(BT){
 }
 
 /* ============ 十字游標 ============ */
-$("cv").addEventListener("mousemove", e=>{
-  if(!VIEW || !BARS.length) return;
-  const r = e.target.getBoundingClientRect();
-  const x = e.clientX - r.left;
-  const {s, show, PL, cw} = VIEW;
-  let i = Math.round(s + (x - PL)/cw*(show-1));
-  i = Math.max(s, Math.min(BARS.length-1, i));
-  const b = BARS[i], R = LASTR;
-  if(!R) return;
-  const tip = $("tip");
-  tip.style.display = "block";
-  tip.textContent =
-    `${tsText(b.t)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
-    `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n` +
-    `量 ${fmt(b.v,1)}`;
-  const tw = tip.offsetWidth, th = tip.offsetHeight;
-  tip.style.left = Math.min(r.width - tw - 6, Math.max(6, x + 14)) + "px";
-  tip.style.top  = Math.min(r.height - th - 6, Math.max(6, e.clientY - r.top + 12)) + "px";
+PANELS.forEach(p=>{
+  const cv = $("cv" + p.k), tip = $("tip" + p.k);
+  cv.addEventListener("mousemove", e=>{
+    if(!p.VIEW || !p.bars.length || !p.R) return;
+    const r = e.target.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const {s, show, PL, cw} = p.VIEW;
+    let i = Math.round(s + (x - PL)/cw*(show-1));
+    i = Math.max(s, Math.min(p.bars.length-1, i));
+    const b = p.bars[i], R = p.R;
+    tip.style.display = "block";
+    tip.textContent =
+      `${tsText(b.t)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
+      `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n` +
+      `量 ${fmt(b.v,1)}`;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.min(r.width - tw - 6, Math.max(6, x + 14)) + "px";
+    tip.style.top  = Math.min(r.height - th - 6, Math.max(6, e.clientY - r.top + 12)) + "px";
+  });
+  cv.addEventListener("mouseleave", ()=> tip.style.display = "none");
 });
-$("cv").addEventListener("mouseleave", ()=> $("tip").style.display = "none");
 
 /* ============ 主流程 ============ */
-let LASTR = null, LASTBT = null, timer = null, busy = false;
+let timer = null, busy = false;
 
 function setStatus(cls, txt){
   $("dot").className = "status-dot " + cls;
@@ -1275,52 +1375,64 @@ async function run(refetch = true){
   if(busy) return;
   busy = true;
   try{
-    const P = readParams();
     SYMBOL = $("feed").value;
-    TF = $("tf").value;
+    PANELS.forEach(p=>{ p.tf = $("tf" + p.k).value; });
 
-    if(refetch || !RAW.length){
-      const limit = +$("bars").value || 500;
-      const synth = !NATIVE_TF.has(TF);
-      // 時段過濾會砍掉約 32%，所以多抓一些，確保過濾後根數足夠
-      const need = $("session").checked ? Math.round(limit * 1.5) : limit;
-      setStatus("", synth ? `合成 ${TF} K 線中（需抓 ${(need*CUSTOM_TF[TF]).toLocaleString()} 根 1 分線）…` : "更新中…");
-      RAW = await fetchBars(SYMBOL, TF, need, (got, want)=>{
+    const limit = +$("bars").value || 500;
+    // 時段過濾會砍掉約 32%，所以多抓一些，確保過濾後根數足夠
+    const need = $("session").checked ? Math.round(limit * 1.5) : limit;
+
+    if(refetch || !PANELS.every(p => p.raw && p.raw.length)){
+      const tfs = PANELS.map(p => p.tf).join(" / ");
+      setStatus("", `取得 ${tfs} 資料中…`);
+      await fetchAll(need, (got, want)=>{
         if(want > 1000) setStatus("", `下載中 ${Math.round(got/want*100)}%（${got.toLocaleString()} / ${want.toLocaleString()}）`);
       });
       showErr("");
     }
-    applySession();
-    const want = +$("bars").value || 500;
-    if(BARS.length > want) BARS = BARS.slice(-want);
 
-    const R  = compute(BARS, P);
-    LASTR = R;
-    const BT = backtest(BARS, R, P);
-    LASTBT = BT;
     const spot = refetch ? await fetchSpot() : LASTSPOT;
     LASTSPOT = spot;
 
-    renderCards(BARS, R, BT, spot, P);
-    renderSignals(BARS, R);
-    renderStats(BT, P);
-    $("statTag").textContent =
-      `${BT.total} 筆・勝率 ${BT.winRate!=null?BT.winRate.toFixed(1)+"%":"—"}・`
-      + `PF ${BT.pf==null?"—":(BT.pf===Infinity?"∞":BT.pf.toFixed(2))}・`
-      + `淨 ${pct(BT.net)}・回撤 ${BT.mdd?("-"+BT.mdd.toFixed(2)+"%"):"—"}`;
-    // 收合時也要看得到目前設定
-    const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[P.srcMode];
-    $("paramTag").textContent =
-      `${$("tf").selectedOptions[0].text.replace(" ✦","")}・${(+$("bars").value).toLocaleString()} 根・`
-      + `${srcTxt}・週期 ${P.per}・乘數 ${P.mult}・成本 ${P.cost}%`
-      + ($("session").checked ? "・剔除休市" : "・24/7");
-    drawChart(BARS, R);
-    if(sheetOpen("shStats")) drawEquity(BT);
-    checkAlarm(BARS, R);
+    for(const p of PANELS){
+      p.P = readParams(p);
+      let b = applySession(p.raw);
+      if(b.length > limit) b = b.slice(-limit);
+      p.bars = b;
+      p.R = compute(b, p.P);
+      p.BT = backtest(b, p.R, p.P);
 
-    $("chartTag").textContent = `${SYMBOL} ・ ${TF} ・ ${BARS.length} 根`
-      + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續");
-    setStatus("live", `${SYMBOL} ${TF}　最後更新 ${new Date().toLocaleTimeString("zh-TW",{hour12:false})}`);
+      renderSigBox(p);
+      renderSignals(p);
+      renderStats(p);
+      drawChart(p);
+      checkAlarm(p);
+
+      $("chartTag" + p.k).textContent =
+        `${SYMBOL} ・ ${p.tf} ・ ${b.length} 根`
+        + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續")
+        + ` ・ 顯示 ${Math.min(p.ZOOM.span || b.length, b.length)} 根`;
+    }
+
+    renderTopCards(PANELS[0].bars, spot);
+
+    const line = p => `${p.label} ${tfLabel(p.tf)}：${p.BT.total} 筆・勝率 `
+      + `${p.BT.winRate!=null?p.BT.winRate.toFixed(1)+"%":"—"}・淨 ${pct(p.BT.net)}`;
+    $("statTag").textContent = PANELS.map(line).join("　│　");
+    $("sigTag").textContent = PANELS.map(p =>
+      `${p.label} ${p.R.rows.length} 筆`).join("　│　") + `・共 ${PANELS[0].bars.length} 根 K 線`;
+
+    const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[PANELS[0].P.srcMode];
+    $("paramTag").textContent =
+      `${(+$("bars").value).toLocaleString()} 根・${srcTxt}・`
+      + PANELS.map(p => `${tfLabel(p.tf)} 週期${p.P.per}/乘數${p.P.mult}`).join("・")
+      + `・成本 ${PANELS[0].P.cost}%`
+      + ($("session").checked ? "・剔除休市" : "・24/7");
+
+    if(sheetOpen("shStats")) PANELS.forEach(drawEquity);
+
+    setStatus("live", `${SYMBOL} ${PANELS.map(p=>p.tf).join("/")}　最後更新 `
+      + new Date().toLocaleTimeString("zh-TW",{hour12:false}));
   }catch(err){
     setStatus("err", "更新失敗");
     showErr(`<b>取得資料失敗：</b>${err.message}<br>
@@ -1378,13 +1490,13 @@ function stopAlarm(){
   $("alarmBox").hidden = true;
 }
 
-function fireAlarm(dir, price, when, confirmed){
+function fireAlarm(dir, price, when, confirmed, tf){
   unlockAudio();
   const long = dir > 0;
   $("alarmIn").className = "alarm-in " + (long ? "long" : "short");
   $("alarmDir").textContent = long ? "▲ 買進訊號" : "▼ 賣出訊號";
   $("alarmTxt").innerHTML =
-    `${TF} ${SYMBOL.replace("USDT","")}　${when}<br>訊號價 ${fmt(price)}　`
+    `${tf} ${SYMBOL.replace("USDT","")}　${when}<br>訊號價 ${fmt(price)}　`
     + (confirmed ? "<b>已收盤確認</b>" : "<b>盤中，尚未收盤（可能反轉）</b>");
   $("alarmBox").hidden = false;
 
@@ -1401,7 +1513,7 @@ function fireAlarm(dir, price, when, confirmed){
   // 頁面在背景時改用系統通知；點通知會把這頁叫回前景
   if("Notification" in window && Notification.permission === "granted"){
     try{
-      const n = new Notification(`${long ? "▲ 買進" : "▼ 賣出"}　${SYMBOL.replace("USDT","")} ${TF}`,
+      const n = new Notification(`${long ? "▲ 買進" : "▼ 賣出"}　${SYMBOL.replace("USDT","")} ${tf}`,
         {body:`${when}　訊號價 ${fmt(price)}\n${confirmed ? "已收盤確認" : "盤中，可能反轉"}`,
          tag:"gold-rf-signal", renotify:true, requireInteraction:true});
       n.onclick = ()=>{ window.focus(); n.close(); };
@@ -1411,8 +1523,9 @@ function fireAlarm(dir, price, when, confirmed){
 function stopBeatOnly(){ if(alarmBeat) clearInterval(alarmBeat); alarmBeat = null; }
 
 // 每次重算後檢查：只有「剛發生」而且沒響過的訊號才叫
-function checkAlarm(bars, R){
+function checkAlarm(p){
   if(!$("alarm").checked) return;
+  const bars = p.bars, R = p.R;
   const n = bars.length - 1;
   const sig = R.rows.length ? R.rows[R.rows.length-1] : null;
   if(!sig) return;
@@ -1421,20 +1534,22 @@ function checkAlarm(bars, R){
   const confirmed = age >= 1;
   if($("alarmClosed").checked && !confirmed) return;
 
-  const key = SYMBOL + "|" + TF + "|" + bars[sig.i].t;
+  const slot = ALARM_KEY + "_" + p.k;
+  const key = SYMBOL + "|" + p.tf + "|" + bars[sig.i].t;
   let seen = null;
-  try{ seen = localStorage.getItem(ALARM_KEY); }catch(e){}
+  try{ seen = localStorage.getItem(slot); }catch(e){}
   if(seen === key) return;
-  try{ localStorage.setItem(ALARM_KEY, key); }catch(e){}
+  try{ localStorage.setItem(slot, key); }catch(e){}
 
-  fireAlarm(sig.dir, bars[sig.i].c, tsText(bars[sig.i].t), confirmed);
+  fireAlarm(sig.dir, bars[sig.i].c, tsText(bars[sig.i].t), confirmed, tfLabel(p.tf));
 }
 
 $("errBox").addEventListener("click", ()=> showErr(null));
 $("alarmStop").addEventListener("click", stopAlarm);
 $("alarmTest").addEventListener("click", ()=>{
-  fireAlarm(-1, BARS.length ? BARS[BARS.length-1].c : 4500,
-            tsText(Date.now()), false);
+  const p = PANELS[0];
+  fireAlarm(-1, p.bars.length ? p.bars[p.bars.length-1].c : 4500,
+            tsText(Date.now()), false, tfLabel(p.tf));
 });
 // 通知在哪些環境拿得到，講清楚而不是丟一句「不支援」
 function isStandalone(){
@@ -1473,59 +1588,60 @@ $("alarmPerm").addEventListener("click", async ()=>{
 });
 
 /* ============ 圖表縮放與平移 ============ */
-function zoomState(){
-  const total = BARS.length;
-  const span = ZOOM.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(ZOOM.span)));
-  const off  = Math.max(0, Math.min(total - span, Math.round(ZOOM.off)));
+function zoomState(p){
+  const total = p.bars.length, Z = p.ZOOM;
+  const span = Z.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(Z.span)));
+  const off  = Math.max(0, Math.min(total - span, Math.round(Z.off)));
   return {total, span, off, s: total - off - span};
 }
-function redrawChart(){ if(LASTR && BARS.length) drawChart(BARS, LASTR); }
+function redrawChart(p){ if(p.R && p.bars.length) drawChart(p); }
 
 // anchor01：0=畫面最左、1=最右。以該點為軸心縮放，手指按在哪就從哪放大
-function zoomTo(newSpan, anchor01){
-  const {total, span, s} = zoomState();
+function zoomTo(p, newSpan, anchor01){
+  const {total, span, s} = zoomState(p);
   if(!total) return;
   const at = s + anchor01 * (span - 1);
   const ns = Math.max(MINBARS, Math.min(total, Math.round(newSpan)));
   let s1 = Math.round(at - anchor01 * (ns - 1));
   s1 = Math.max(0, Math.min(total - ns, s1));
-  ZOOM = {span: ns >= total ? null : ns, off: total - ns - s1};
-  redrawChart();
+  p.ZOOM = {span: ns >= total ? null : ns, off: total - ns - s1};
+  redrawChart(p);
 }
-function zoomBy(f, anchor01 = 0.5){ zoomTo(zoomState().span * f, anchor01); }
-function panBars(d){
-  const {total, span, off} = zoomState();
+function zoomBy(p, f, anchor01 = 0.5){ zoomTo(p, zoomState(p).span * f, anchor01); }
+function panBars(p, d){
+  const {total, span, off} = zoomState(p);
   if(span >= total) return;
-  ZOOM = {span, off: Math.max(0, Math.min(total - span, off + d))};
-  redrawChart();
+  p.ZOOM = {span, off: Math.max(0, Math.min(total - span, off + d))};
+  redrawChart(p);
 }
-function resetZoom(){ ZOOM = {span:null, off:0}; redrawChart(); }
+// 「還原」回到預設的 2000 根，不是整段 20000 根——整段擠在一個畫面看不出東西
+function resetZoom(p){ p.ZOOM = {span: VIEW_BARS, off: 0}; redrawChart(p); }
 
-(function bindChartGestures(){
-  const box = $("chartBox");
+PANELS.forEach(p=>{
+  const box = $("chartBox" + p.k);
   const at01 = clientX => {
     const r = box.getBoundingClientRect();
-    const PL = VIEW ? VIEW.PL : 8, PR = VIEW ? VIEW.PR : 66;
+    const PL = p.VIEW ? p.VIEW.PL : 8, PR = p.VIEW ? p.VIEW.PR : 66;
     return Math.max(0, Math.min(1, (clientX - r.left - PL) / (r.width - PL - PR)));
   };
 
   box.addEventListener("wheel", ev=>{
     ev.preventDefault();
-    zoomBy(ev.deltaY > 0 ? 1.18 : 1/1.18, at01(ev.clientX));
+    zoomBy(p, ev.deltaY > 0 ? 1.18 : 1/1.18, at01(ev.clientX));
   }, {passive:false});
 
-  box.addEventListener("dblclick", resetZoom);
+  box.addEventListener("dblclick", ()=> resetZoom(p));
 
   // 滑鼠拖曳平移
   let dragX = null;
   box.addEventListener("mousedown", ev=>{ dragX = ev.clientX; box.style.cursor = "grabbing"; });
-  window.addEventListener("mouseup", ()=>{ dragX = null; box.style.cursor = ""; });
+  window.addEventListener("mouseup", ()=>{ if(dragX!==null){ dragX = null; box.style.cursor = ""; } });
   window.addEventListener("mousemove", ev=>{
     if(dragX === null) return;
-    const {span} = zoomState();
+    const {span} = zoomState(p);
     const perPx = span / (box.getBoundingClientRect().width - 74);
     const d = Math.round((dragX - ev.clientX) * perPx);
-    if(d){ panBars(-d); dragX = ev.clientX; }   // 往左拖看更早的資料
+    if(d){ panBars(p, -d); dragX = ev.clientX; }   // 往左拖看更早的資料
   });
 
   // 觸控：一指平移、兩指縮放
@@ -1533,7 +1649,7 @@ function resetZoom(){ ZOOM = {span:null, off:0}; redrawChart(); }
   box.addEventListener("touchstart", ev=>{
     if(ev.touches.length === 2){
       pinch = {d: Math.abs(ev.touches[0].clientX - ev.touches[1].clientX) || 1,
-               span: zoomState().span,
+               span: zoomState(p).span,
                a: at01((ev.touches[0].clientX + ev.touches[1].clientX)/2)};
       t0 = null;
     }else if(ev.touches.length === 1){
@@ -1545,31 +1661,30 @@ function resetZoom(){ ZOOM = {span:null, off:0}; redrawChart(); }
     if(pinch && ev.touches.length === 2){
       ev.preventDefault();
       const d = Math.abs(ev.touches[0].clientX - ev.touches[1].clientX) || 1;
-      zoomTo(pinch.span * (pinch.d / d), pinch.a);
+      zoomTo(p, pinch.span * (pinch.d / d), pinch.a);
     }else if(t0 !== null && ev.touches.length === 1){
-      const {span, total} = zoomState();
+      const {span, total} = zoomState(p);
       if(span >= total) return;
       ev.preventDefault();
       const perPx = span / (box.getBoundingClientRect().width - 74);
-      const dx = t0 - ev.touches[0].clientX;
-      const d = Math.round(dx * perPx);
-      if(d){ panBars(-d); t0 = ev.touches[0].clientX; }
+      const d = Math.round((t0 - ev.touches[0].clientX) * perPx);
+      if(d){ panBars(p, -d); t0 = ev.touches[0].clientX; }
     }
   }, {passive:false});
 
   box.addEventListener("touchend", ev=>{
     if(ev.touches.length === 0){ t0 = null; pinch = null; }
   }, {passive:true});
+});
 
-  document.querySelectorAll("[data-z]").forEach(b=>{
-    b.addEventListener("click", ()=>{
-      const k = b.dataset.z;
-      if(k === "in")  zoomBy(1/1.6);
-      if(k === "out") zoomBy(1.6);
-      if(k === "reset") resetZoom();
-    });
+document.querySelectorAll("[data-z]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    const p = PAN(b.dataset.p), k = b.dataset.z;
+    if(k === "in")  zoomBy(p, 1/1.6);
+    if(k === "out") zoomBy(p, 1.6);
+    if(k === "reset") resetZoom(p);
   });
-})();
+});
 
 /* ============ 底部分頁與彈出面板 ============ */
 function sheetOpen(id){ return $(id).classList.contains("open"); }
@@ -1583,7 +1698,7 @@ function openSheet(id){
   const btn = document.querySelector(`.tab[data-sheet="${id}"]`);
   if(btn) btn.classList.add("on");
   // 面板收著的時候 canvas 量不到寬度，開起來才畫得出權益曲線
-  if(id === "shStats" && LASTBT) requestAnimationFrame(()=> drawEquity(LASTBT));
+  if(id === "shStats") requestAnimationFrame(()=> PANELS.forEach(p=>{ if(p.BT) drawEquity(p); }));
 }
 function closeSheet(){
   document.querySelectorAll(".sheet.open").forEach(el=> el.classList.remove("open"));
@@ -1653,32 +1768,38 @@ function esc(t){
 }
 
 /* 事件綁定 */
-["srcSel","per","mult","cost","session"].forEach(id=>{
+["srcSel","perA","multA","perB","multB","cost","session"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(false));
 });
-["feed","tf","bars"].forEach(id=>{
+["feed","tfA","tfB","bars"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(true));
 });
 $("refresh").addEventListener("click", ()=> run(true));
 
 // 預設值＝經 20000 根／223 天驗證的最佳組合（勝率 56.3%、PF 4.43、淨 +40.6%）
-const DEFAULTS = {feed:"PAXGUSDT", tf:"11m", bars:"20000",
-                  srcSel:"hl2", per:300, mult:23, cost:0.05, session:true};
+const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"2m", bars:"20000", srcSel:"hl2",
+                  perA:300, multA:23, perB:300, multB:23, cost:0.05, session:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
-                   || $("tf").value   !== DEFAULTS.tf
+                   || $("tfA").value  !== DEFAULTS.tfA
+                   || $("tfB").value  !== DEFAULTS.tfB
                    || $("bars").value !== DEFAULTS.bars
                    || $("session").checked !== DEFAULTS.session;
-  $("feed").value = DEFAULTS.feed; $("tf").value = DEFAULTS.tf; $("bars").value = DEFAULTS.bars;
+  $("feed").value = DEFAULTS.feed; $("bars").value = DEFAULTS.bars;
+  $("tfA").value = DEFAULTS.tfA;   $("tfB").value = DEFAULTS.tfB;
   $("srcSel").value = DEFAULTS.srcSel;
-  $("per").value = DEFAULTS.per; $("mult").value = DEFAULTS.mult;
+  $("perA").value = DEFAULTS.perA; $("multA").value = DEFAULTS.multA;
+  $("perB").value = DEFAULTS.perB; $("multB").value = DEFAULTS.multB;
   $("cost").value = DEFAULTS.cost; $("session").checked = DEFAULTS.session;
+  PANELS.forEach(p=>{ p.ZOOM = {span: VIEW_BARS, off: 0}; });
   run(needRefetch);
 });
 
 // 你的原始參數（取樣週期 100），用來對照
 $("orig").addEventListener("click", ()=>{
-  $("srcSel").value = "hl2"; $("per").value = 100; $("mult").value = 23;
+  $("srcSel").value = "hl2";
+  $("perA").value = 100; $("multA").value = 23;
+  $("perB").value = 100; $("multB").value = 23;
   run(false);
 });
 
@@ -1687,23 +1808,37 @@ $("orig").addEventListener("click", ()=>{
    不可能每兩分鐘做一次；而 Range Filter 是遞迴的，本機重算整段只要幾十毫秒。
    所以「重算」和「重抓」分開：這裡只抓尾巴，其餘用記憶體裡的資料算。 */
 async function syncTail(){
-  const mins = NATIVE_TF.has(TF) ? null : CUSTOM_TF[TF];
-  const url = mins == null
-    ? `https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${TF}&limit=4`
-    : `https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=1m&limit=${mins*4}`;
-  const r = await fetch(url, {cache:"no-store"});
-  if(!r.ok) throw new Error(`Binance API ${r.status}`);
-  const raw = (await r.json()).map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
-  if(!raw.length) return false;
-  // 合成週期的第一個時間桶會被截半，丟掉才不會拿到假的開高低
-  const tail = mins == null ? raw : aggregate(raw, mins).slice(1);
-  if(!tail.length) return false;
+  // 兩套策略共用同一份 1 分線，所以尾巴只要補一次
+  const customs = PANELS.filter(p => !NATIVE_TF.has(p.tf));
+  const maxMin = customs.length ? Math.max(...customs.map(p => CUSTOM_TF[p.tf])) : 0;
 
-  const cut = tail[0].t;
-  RAW = RAW.filter(b => b.t < cut).concat(tail);
+  if(customs.length){
+    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=1m&limit=${maxMin*4}`, {cache:"no-store"});
+    if(!r.ok) throw new Error(`Binance API ${r.status}`);
+    const raw = (await r.json()).map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+    if(raw.length){
+      const cut1 = raw[0].t;
+      RAW1M = RAW1M.filter(b => b.t < cut1).concat(raw);
+    }
+  }
+
   const limit = +$("bars").value || 500;
   const cap = $("session").checked ? Math.round(limit * 1.5) : limit;
-  if(RAW.length > cap) RAW = RAW.slice(-cap);
+
+  for(const p of PANELS){
+    if(NATIVE_TF.has(p.tf)){
+      const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${p.tf}&limit=4`, {cache:"no-store"});
+      if(!r.ok) continue;
+      const tail = (await r.json()).map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+      if(!tail.length) continue;
+      const c0 = tail[0].t;
+      p.raw = p.raw.filter(b => b.t < c0).concat(tail);
+    }else{
+      // 合成週期的第一個時間桶會被截半，重新聚合整段最單純也不慢
+      p.raw = aggregate(RAW1M, CUSTOM_TF[p.tf]);
+    }
+    if(p.raw.length > cap) p.raw = p.raw.slice(-cap);
+  }
   return true;
 }
 
@@ -1728,13 +1863,13 @@ let rz;
 window.addEventListener("resize", ()=>{
   clearTimeout(rz);
   rz = setTimeout(()=>{
-    if(LASTR){ drawChart(BARS, LASTR); run(false); }
-    if(LASTBT && sheetOpen("shStats")) drawEquity(LASTBT);
+    PANELS.forEach(p=>{ if(p.R) drawChart(p); });
+    if(sheetOpen("shStats")) PANELS.forEach(p=>{ if(p.BT) drawEquity(p); });
   }, 180);
 });
 
 run(true).then(()=>{ resetTimer(); resetLive(); });
-$("verTag").textContent = "版本 006・單頁版";
+$("verTag").textContent = "版本 007・雙策略單頁版";
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
