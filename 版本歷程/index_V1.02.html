@@ -16,7 +16,7 @@
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2331; --line:#2b3444;
     --txt:#e6edf3; --dim:#8b98a9; --dim2:#5f6b7d;
     /* 台股慣例：上漲紅、下跌綠 */
-    --up:#ff073a; --down:#39ff14; --mid:#78909c; --live:#00d4ff;
+    --up:#ff3b3b; --down:#4cff00; --mid:#78909c; --live:#00d4ff;
     --gold:#e5b53c; --accent:#58a6ff;
     --mono:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace;
   }
@@ -114,18 +114,6 @@
   .sigcap .k{font-size:11px;color:var(--dim);letter-spacing:.6px;flex:none}
   .sigcap .v{font-size:22px;font-weight:700;font-family:var(--mono);flex:none;
              white-space:nowrap;line-height:1.15}
-  /* 方向那格會呼吸。用 currentColor 所以紅綠各自發自己的光 */
-  @keyframes neonPulse{
-    0%,100%{ text-shadow:0 0 7px currentColor, 0 0 16px currentColor; opacity:1 }
-    50%    { text-shadow:0 0 2px currentColor, 0 0 6px  currentColor; opacity:.78 }
-  }
-  .sigcap .v.up, .sigcap .v.down{ animation:neonPulse 1.5s ease-in-out infinite }
-  .sigcap.long{box-shadow:0 0 12px -4px var(--up)}
-  .sigcap.short{box-shadow:0 0 12px -4px var(--down)}
-  /* 使用者若在系統關掉動態效果就別閃 */
-  @media(prefers-reduced-motion:reduce){
-    .sigcap .v.up, .sigcap .v.down{ animation:none }
-  }
   .sigcap .tf{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;
               border:1px solid var(--line);color:var(--dim);flex:none}
 
@@ -1246,8 +1234,7 @@ function setupCanvas(cv){
   return {ctx, W:r.width, H:r.height};
 }
 
-const C_UP = "#ff073a", C_DN = "#39ff14", C_LIVE = "#00d4ff", C_MID = "#78909c";
-let PULSE = 0;                      // 0~1 的呼吸相位，驅動最新一點的光暈
+const C_UP = "#ff3b3b", C_DN = "#4cff00", C_LIVE = "#00d4ff";
 const MINBARS = 40;                 // 最多放大到只剩 40 根
 
 function drawChart(p){
@@ -1336,25 +1323,14 @@ function drawChart(p){
   ctx.strokeStyle = "#c9d1d9"; ctx.lineWidth = 1.1; ctx.stroke();
 
   // 過濾線（依方向分段上色）
-  ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.lineCap = "round";
-  /* 原本每根 K 線 stroke 一次，600~1250 次。改成把同色的連續段一次畫完，
-     次數降到個位數，也才付得起 shadowBlur 的成本——螢光感就是靠它。 */
-  const colOf = i => R.upward[i]>0 ? C_UP : R.downward[i]>0 ? C_DN : C_MID;
-  let i = s + 1;
-  while(i < e){
-    const col = colOf(i);
-    let j = i;
-    while(j + 1 < e && colOf(j+1) === col) j++;
+  ctx.lineWidth = 2.2; ctx.lineJoin = "round";
+  for(let i=s+1;i<e;i++){
+    const col = R.upward[i]>0 ? C_UP : R.downward[i]>0 ? C_DN : "#78909c";
     ctx.beginPath();
     ctx.moveTo(X(i-1), Y(R.filt[i-1]));
-    for(let k=i; k<=j; k++) ctx.lineTo(X(k), Y(R.filt[k]));
-    ctx.strokeStyle = col;
-    ctx.shadowColor = col; ctx.shadowBlur = 10;
-    ctx.stroke();
-    ctx.stroke();                     // 疊第二次讓光暈厚一點
-    i = j + 1;
+    ctx.lineTo(X(i), Y(R.filt[i]));
+    ctx.strokeStyle = col; ctx.stroke();
   }
-  ctx.shadowBlur = 0;
 
   // 訊號箭頭
   for(const r of R.rows){
@@ -1366,10 +1342,7 @@ function drawChart(p){
     if(up){ ctx.moveTo(x,y-8); ctx.lineTo(x-6,y+3); ctx.lineTo(x+6,y+3); }
     else  { ctx.moveTo(x,y+8); ctx.lineTo(x-6,y-3); ctx.lineTo(x+6,y-3); }
     ctx.closePath();
-    ctx.fillStyle = up ? C_UP : C_DN;
-    ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
-    ctx.fill();
-    ctx.shadowBlur = 0;
+    ctx.fillStyle = up ? C_UP : C_DN; ctx.fill();
     ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1; ctx.stroke();
   }
   drawLive(p);
@@ -1381,23 +1354,6 @@ function drawLive(p){
   if(!cv || !p.VIEW) return;
   const {ctx, W, H} = setupCanvas(cv);
   ctx.clearRect(0, 0, W, H);
-  // 指標最新一點的呼吸光暈：跳動感畫在疊圖上，主圖完全不用重畫
-  if(p.R && p.VIEW.e > p.VIEW.s){
-    const li = p.VIEW.e - 1;
-    const dir = p.R.upward[li] > 0 ? 1 : p.R.downward[li] > 0 ? -1 : 0;
-    if(dir){
-      const col = dir > 0 ? C_UP : C_DN;
-      const t = 0.5 - 0.5 * Math.cos(PULSE * Math.PI * 2);      // 0→1→0
-      ctx.beginPath();
-      ctx.arc(p.VIEW.X(li), p.VIEW.Y(p.R.filt[li]), 3 + t * 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = col;
-      ctx.globalAlpha = 0.4 + 0.5 * (1 - t);
-      ctx.shadowColor = col; ctx.shadowBlur = 6 + t * 16;
-      ctx.fill();
-      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
-    }
-  }
-
   const px = LIVEPX != null ? LIVEPX : (p.bars.length ? p.bars[p.bars.length-1].c : null);
   if(px == null) return;
   const {Y, PL, PR, lo, hi} = p.VIEW;
@@ -1992,21 +1948,6 @@ window.addEventListener("resize", ()=>{
     if(sheetOpen("shStats")) PANELS.forEach(p=>{ if(p.BT) drawEquity(p); });
   }, 180);
 });
-
-/* 呼吸動畫：只重畫疊圖那張小 canvas（一條線＋一個點），主圖不動。
-   背景分頁直接跳過，約 22fps 就夠順，手機電池付得起。 */
-(function pulseLoop(){
-  const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if(still){ PULSE = 0.5; return; }
-  let last = 0;
-  requestAnimationFrame(function tick(ts){
-    requestAnimationFrame(tick);
-    if(document.hidden || ts - last < 45) return;
-    last = ts;
-    PULSE = (ts % 1500) / 1500;
-    for(const p of PANELS) if(p.VIEW) drawLive(p);
-  });
-})();
 
 run(true).then(()=>{ resetTimer(); resetLive(); });
 $("verTitle").textContent = VERSION;
