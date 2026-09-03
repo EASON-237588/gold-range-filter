@@ -485,38 +485,18 @@
       <option value="1d">日線</option>
     </select>
   </label>
-  <label title="這套策略拿幾根 K 線做指標與回測。週期越短要越多根才涵蓋同樣天數">上方根數
-    <select id="barsA">
+  <label>根數
+    <select id="bars">
       <option value="500">500</option>
-      <option value="1000">1,000</option>
-      <option value="2000">2,000</option>
-      <option value="3000">3,000</option>
-      <option value="5000">5,000</option>
-      <option value="10000">10,000</option>
-      <option value="15000">15,000</option>
-      <option value="20000" selected>20,000</option>
-      <option value="30000">30,000</option>
-      <option value="50000">50,000</option>
-      <option value="80000">80,000</option>
-      <option value="110000">110,000</option>
-      <option value="140000">140,000</option>
-    </select>
-  </label>
-  <label title="這套策略拿幾根 K 線做指標與回測。週期越短要越多根才涵蓋同樣天數">下方根數
-    <select id="barsB">
-      <option value="500">500</option>
-      <option value="1000">1,000</option>
-      <option value="2000">2,000</option>
-      <option value="3000">3,000</option>
-      <option value="5000">5,000</option>
-      <option value="10000">10,000</option>
-      <option value="15000">15,000</option>
-      <option value="20000">20,000</option>
-      <option value="30000">30,000</option>
-      <option value="50000">50,000</option>
-      <option value="80000">80,000</option>
-      <option value="110000" selected>110,000</option>
-      <option value="140000">140,000</option>
+      <option value="1000">1000</option>
+      <option value="1500">1500</option>
+      <option value="2000">2000</option>
+      <option value="2500">2500</option>
+      <option value="3000">3000</option>
+      <option value="5000">5000</option>
+      <option value="10000">10000</option>
+      <option value="15000">15000</option>
+      <option value="20000" selected>20000</option>
     </select>
   </label>
   <div class="sep"></div>
@@ -534,8 +514,8 @@
   <div class="sep"></div>
   <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">下方顯示根數
     <input type="number" id="viewB" value="1250" min="40" step="50"></label>
-  <label>下方取樣週期 <input type="number" id="perB" value="100" min="1"></label>
-  <label>下方範圍乘數 <input type="number" id="multB" value="29" min="0.1" step="0.5"></label>
+  <label>下方取樣週期 <input type="number" id="perB" value="300" min="1"></label>
+  <label>下方範圍乘數 <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
     <input type="number" id="cost" value="0.05" step="0.01" min="0"></label>
@@ -719,7 +699,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.02";
+const VERSION = "V1.01";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -995,16 +975,15 @@ function aggregate(bars1m, minutes){
 
 /* 11 分與 2 分都是由 1 分線聚合出來的，而 2 分需要的 1 分資料是 11 分那份的子集合。
    所以只抓一次「最長的那個」，兩邊共用——否則等於把最慢的那步做兩遍。 */
-async function fetchAll(onProgress){
+async function fetchAll(limit, onProgress){
   const custom = PANELS.filter(p => !NATIVE_TF.has(p.tf));
   if(custom.length){
-    // 抓一次涵蓋所有自訂週期所需的最長 1 分線，兩套策略共用
-    const need = Math.max(...custom.map(p => p.need * CUSTOM_TF[p.tf] + CUSTOM_TF[p.tf] * 2));
+    const need = Math.max(...custom.map(p => limit * CUSTOM_TF[p.tf] + CUSTOM_TF[p.tf] * 2));
     RAW1M = await fetchRaw(SYMBOL, "1m", need, onProgress);
   }
   for(const p of PANELS){
     p.raw = NATIVE_TF.has(p.tf)
-      ? await fetchRaw(SYMBOL, p.tf, p.need, onProgress)
+      ? await fetchRaw(SYMBOL, p.tf, limit, onProgress)
       : aggregate(RAW1M, CUSTOM_TF[p.tf]);
   }
 }
@@ -1451,16 +1430,14 @@ async function run(refetch = true){
     SYMBOL = $("feed").value;
     PANELS.forEach(p=>{ p.tf = $("tf" + p.k).value; });
 
+    const limit = +$("bars").value || 500;
     // 時段過濾會砍掉約 32%，所以多抓一些，確保過濾後根數足夠
-    PANELS.forEach(p=>{
-      p.limit = +$("bars" + p.k).value || 500;
-      p.need  = $("session").checked ? Math.round(p.limit * 1.5) : p.limit;
-    });
+    const need = $("session").checked ? Math.round(limit * 1.5) : limit;
 
     if(refetch || !PANELS.every(p => p.raw && p.raw.length)){
       const tfs = PANELS.map(p => p.tf).join(" / ");
       setStatus("", `取得 ${tfs} 資料中…`);
-      await fetchAll((got, want)=>{
+      await fetchAll(need, (got, want)=>{
         if(want > 1000) setStatus("", `下載中 ${Math.round(got/want*100)}%（${got.toLocaleString()} / ${want.toLocaleString()}）`);
       });
       showErr("");
@@ -1472,7 +1449,7 @@ async function run(refetch = true){
     for(const p of PANELS){
       p.P = readParams(p);
       let b = applySession(p.raw);
-      if(b.length > p.limit) b = b.slice(-p.limit);
+      if(b.length > limit) b = b.slice(-limit);
       p.bars = b;
       p.R = compute(b, p.P);
       p.BT = backtest(b, p.R, p.P);
@@ -1495,8 +1472,8 @@ async function run(refetch = true){
 
     const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[PANELS[0].P.srcMode];
     $("paramTag").textContent =
-      `${srcTxt}・`
-      + PANELS.map(p => `${tfLabel(p.tf)} ${p.bars.length.toLocaleString()}根/週期${p.P.per}/乘數${p.P.mult}`).join("・")
+      `${(+$("bars").value).toLocaleString()} 根・${srcTxt}・`
+      + PANELS.map(p => `${tfLabel(p.tf)} 週期${p.P.per}/乘數${p.P.mult}`).join("・")
       + `・成本 ${PANELS[0].P.cost}%`
       + ($("session").checked ? "・剔除休市" : "・24/7");
 
@@ -1849,25 +1826,22 @@ function esc(t){
     redrawChart(p);
   });
 });
-["feed","tfA","tfB","barsA","barsB"].forEach(id=>{
+["feed","tfA","tfB","bars"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(true));
 });
 $("refresh").addEventListener("click", ()=> run(true));
 
 // 預設值＝經 20000 根／223 天驗證的最佳組合（勝率 56.3%、PF 4.43、淨 +40.6%）
-const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"2m",
-                  barsA:"20000", barsB:"110000", srcSel:"hl2",
+const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"2m", bars:"20000", srcSel:"hl2",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
-                  perA:300, multA:23, perB:100, multB:29, cost:0.05, session:true};
+                  perA:300, multA:23, perB:300, multB:23, cost:0.05, session:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
-                   || $("tfA").value   !== DEFAULTS.tfA
-                   || $("tfB").value   !== DEFAULTS.tfB
-                   || $("barsA").value !== DEFAULTS.barsA
-                   || $("barsB").value !== DEFAULTS.barsB
+                   || $("tfA").value  !== DEFAULTS.tfA
+                   || $("tfB").value  !== DEFAULTS.tfB
+                   || $("bars").value !== DEFAULTS.bars
                    || $("session").checked !== DEFAULTS.session;
-  $("feed").value = DEFAULTS.feed;
-  $("barsA").value = DEFAULTS.barsA; $("barsB").value = DEFAULTS.barsB;
+  $("feed").value = DEFAULTS.feed; $("bars").value = DEFAULTS.bars;
   $("tfA").value = DEFAULTS.tfA;   $("tfB").value = DEFAULTS.tfB;
   $("srcSel").value = DEFAULTS.srcSel;
   $("perA").value = DEFAULTS.perA; $("multA").value = DEFAULTS.multA;
@@ -1905,8 +1879,10 @@ async function syncTail(){
     }
   }
 
+  const limit = +$("bars").value || 500;
+  const cap = $("session").checked ? Math.round(limit * 1.5) : limit;
+
   for(const p of PANELS){
-    const cap = p.need || 20000;
     if(NATIVE_TF.has(p.tf)){
       const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${p.tf}&limit=4`, {cache:"no-store"});
       if(!r.ok) continue;
