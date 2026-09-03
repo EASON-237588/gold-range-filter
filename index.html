@@ -96,21 +96,24 @@
   .strat{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
   .sigbox{
     background:var(--panel);border:1px solid var(--line);border-radius:8px;
-    padding:9px 14px;flex:none;
+    padding:6px 13px;flex:none;
   }
+  /* 兩行就好：省下來的高度全部讓給 K 線圖，一頁要塞得下兩套策略 */
+  .sigline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;line-height:1.5}
+  .sigmain{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;line-height:1.3}
+  .sigmeta{font-family:var(--mono);font-size:11px;color:var(--dim2);white-space:nowrap}
   .sigbox.long{border-color:var(--up);background:linear-gradient(180deg,rgba(255,59,59,.15),transparent)}
   .sigbox.short{border-color:var(--down);background:linear-gradient(180deg,rgba(76,255,0,.13),transparent)}
-  .sigbox .k{font-size:11px;color:var(--dim);letter-spacing:.6px}
-  .sigbox .v{font-size:26px;font-weight:700;font-family:var(--mono);line-height:1.15;margin:1px 0 2px}
-  .sigbox .s{font-size:11px;color:var(--dim2);font-family:var(--mono);line-height:1.5}
+  .sigbox .k{font-size:11px;color:var(--dim);letter-spacing:.6px;flex:none}
+  .sigbox .v{font-size:25px;font-weight:700;font-family:var(--mono);flex:none}
   .sigbox .tf{font-size:10px;font-weight:600;padding:1px 7px;border-radius:99px;
-              border:1px solid var(--line);color:var(--dim);margin-left:7px;vertical-align:2px}
+              border:1px solid var(--line);color:var(--dim);flex:none}
 
   .chartbox{position:relative;width:100%;flex:1;min-height:0;touch-action:none;cursor:grab}
   .zoombar{position:absolute;top:6px;right:70px;display:flex;gap:4px;z-index:3}
   .zoombar button{
-    width:28px;height:28px;padding:0;font-size:14px;line-height:1;
-    background:rgba(28,35,49,.85);border:1px solid var(--line);color:var(--dim);
+    width:34px;height:34px;padding:0;font-size:17px;line-height:1;
+    background:rgba(28,35,49,.9);border:1px solid var(--line);color:var(--dim);
   }
   .zoombar button:hover{color:var(--accent);border-color:var(--accent)}
   canvas{display:block;width:100%;height:100%;border-radius:5px}
@@ -321,9 +324,11 @@
     .legend{display:none}
     .chartbox{min-height:100px}
     .strat{gap:5px}
-    .sigbox{padding:6px 10px}
-    .sigbox .v{font-size:20px}
-    .sigbox .s{font-size:9.5px;line-height:1.4}
+    .sigbox{padding:5px 9px}
+    .sigbox .v{font-size:19px}
+    .sigline{gap:7px}
+    .sigmain{gap:9px}
+    .sigmeta{font-size:9.5px}
     .tabbar{padding:5px 0 calc(5px + env(safe-area-inset-bottom,0px))}
     .tab{padding:6px 2px;font-size:10.5px}
     .sheet-box{max-height:94dvh}
@@ -357,8 +362,10 @@
 </div>
 
 <section class="strat">
-  <div class="sigbox" id="sigA"><div class="k">最近訊號<span class="tf" id="tfTagA">11 分</span></div>
-    <div class="v mid">—</div><div class="s">載入中…</div></div>
+  <div class="sigbox" id="sigA">
+    <div class="sigline"><span class="k">最近訊號</span><span class="tf">11 分</span>
+      <span class="sigmeta">載入中…</span></div>
+    <div class="sigmain"><div class="v mid">—</div></div></div>
   <div class="chartcard">
     <h2>價格 × Range Filter 通道 <span class="tag" id="chartTagA">—</span></h2>
     <div class="chartbox" id="chartBoxA">
@@ -374,8 +381,10 @@
 </section>
 
 <section class="strat">
-  <div class="sigbox" id="sigB"><div class="k">最近訊號<span class="tf" id="tfTagB">2 分</span></div>
-    <div class="v mid">—</div><div class="s">載入中…</div></div>
+  <div class="sigbox" id="sigB">
+    <div class="sigline"><span class="k">最近訊號</span><span class="tf">2 分</span>
+      <span class="sigmeta">載入中…</span></div>
+    <div class="sigmain"><div class="v mid">—</div></div></div>
   <div class="chartcard">
     <h2>價格 × Range Filter 通道 <span class="tag" id="chartTagB">—</span></h2>
     <div class="chartbox" id="chartBoxB">
@@ -1001,28 +1010,32 @@ function renderSigBox(p){
   const held = BT.open;
 
   let cls = "sigbox";
-  let v = `<div class="v mid">無訊號</div>`;
-  let s = "目前參數下區間內未觸發";
+  let big = `<div class="v mid">無訊號</div>`;
+  let when = `<span class="sigmeta">目前參數下區間內未觸發</span>`;
+  let since = "";
 
   if(lastSig){
     const sb = bars[lastSig.i], ago = n - lastSig.i;
-    const since = (last.c/sb.c - 1) * 100 * lastSig.dir;
+    const chg = (last.c/sb.c - 1) * 100 * lastSig.dir;
     cls += lastSig.dir > 0 ? " long" : " short";
-    v = `<div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>`;
-    s = `${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}　`
-      + `訊號後至今 <span id="sigSince${k}" class="${since>=0?"up":"down"}">${pct(since)}</span>`;
+    big  = `<div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>`;
+    when = `<span class="sigmeta">${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}</span>`;
+    since = `<span class="sigmeta">訊號後至今 `
+          + `<span id="sigSince${k}" class="${chg>=0?"up":"down"}">${pct(chg)}</span></span>`;
   }
 
   const heldPct = held ? (held.dir>0 ? (last.c/held.entry-1) : (held.entry/last.c-1))*100 : null;
-  s += held
-    ? `<br>持倉 ${held.dir>0?"多單":"空單"}　進場 ${fmt(held.entry)}　浮動 `
-      + `<span id="heldFloat${k}" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span>`
-    : `<br>持倉 空手　等待下一個訊號`;
+  const heldTxt = held
+    ? `<span class="sigmeta">持倉 ${held.dir>0?"多單":"空單"}　進場 ${fmt(held.entry)}　浮動 `
+      + `<span id="heldFloat${k}" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span></span>`
+    : `<span class="sigmeta">持倉 空手　等待下一個訊號</span>`;
 
   const box = $("sig" + k);
   box.className = cls;
-  box.innerHTML = `<div class="k">最近訊號<span class="tf">${tfLabel(p.tf)}</span></div>`
-                + v + `<div class="s">${s}</div>`;
+  box.innerHTML =
+    `<div class="sigline"><span class="k">最近訊號</span>`
+    + `<span class="tf">${tfLabel(p.tf)}</span>${when}${since}</div>`
+    + `<div class="sigmain">${big}${heldTxt}</div>`;
 
   p.LIVE = {
     sigPrice: lastSig ? bars[lastSig.i].c : null,
