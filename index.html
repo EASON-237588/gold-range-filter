@@ -1204,7 +1204,9 @@ function drawChart(p){
   const s = total - off - show;
   const e = s + show;                       // 不含
   const PL = 8, PR = 54, PT = 12, PB = 24;
-  const cw = W - PL - PR, ch = H - PT - PB;
+  // 最後一根 K 棒不要貼著價格軸，右邊留一段空白比較好讀，也留位置給現價標籤
+  const RGAP = Math.round(Math.min(46, Math.max(20, (W - PL - PR) * 0.07)));
+  const cw = W - PL - PR - RGAP, ch = H - PT - PB;
 
   let lo = Infinity, hi = -Infinity;
   for(let i=s;i<e;i++){
