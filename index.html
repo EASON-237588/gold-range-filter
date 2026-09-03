@@ -483,9 +483,13 @@
       <option value="hlc3">(H+L+C)/3</option>
     </select>
   </label>
+  <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">上方顯示根數
+    <input type="number" id="viewA" value="600" min="40" step="50"></label>
   <label>上方取樣週期 <input type="number" id="perA" value="300" min="1"></label>
   <label>上方範圍乘數 <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
   <div class="sep"></div>
+  <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">下方顯示根數
+    <input type="number" id="viewB" value="1250" min="40" step="50"></label>
   <label>下方取樣週期 <input type="number" id="perB" value="300" min="1"></label>
   <label>下方範圍乘數 <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
   <div class="sep"></div>
@@ -863,16 +867,21 @@ function backtest(bars, R, P){
 /* ============ 取資料 ============ */
 let RAW1M = [], SYMBOL = "";
 
-// 畫面預設只顯示最近這麼多根；統計與訊號仍用全部根數，要看更早的自己縮小
-const VIEW_BARS = 2000;
+/* 畫面預設只顯示最近這麼多根；統計與訊號仍吃滿全部根數。
+   兩套策略的週期不同，同樣根數涵蓋的天數差很多，所以各自設定。 */
+const VIEW_DEFAULT = {A: 600, B: 1250};
+function viewBars(p){
+  const v = +$("view" + p.k).value;
+  return v > 0 ? v : VIEW_DEFAULT[p.k];
+}
 
 /* 兩套策略共用同一份行情，只是聚合成不同週期。
    A 是慢的（預設 11 分），B 是快的（預設 2 分）。 */
 const PANELS = [
   {k:"A", label:"上方", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
-   ZOOM:{span:VIEW_BARS, off:0}, LIVE:null},
+   ZOOM:{span:VIEW_DEFAULT.A, off:0}, LIVE:null},
   {k:"B", label:"下方", tf:"2m",  bars:[], R:null, BT:null, VIEW:null,
-   ZOOM:{span:VIEW_BARS, off:0}, LIVE:null},
+   ZOOM:{span:VIEW_DEFAULT.B, off:0}, LIVE:null},
 ];
 const PAN = k => PANELS.find(p => p.k === k);
 
@@ -983,19 +992,17 @@ function tfLabel(tf){
 function renderTopCards(bars, spot){
   const n = bars.length - 1;
   const last = bars[n], prev = bars[n-1];
-  const chg = (last.c/prev.c - 1) * 100;
+  const chg = (last.c/prev.c - 1) * 100;   // 只用來決定現價的漲跌顏色
   $("cards").innerHTML = `
     <div class="card">
       <div class="k">現價（${SYMBOL.replace("USDT","")}）<span id="beat" class="beat" hidden></span></div>
       <div id="pxNow" class="v ${chg>=0?"up":"down"}">${fmt(last.c)}</div>
-      <div id="pxSub" class="s">本根 ${pct(chg)}　${tsText(last.t)}</div>
     </div>
     <div class="card">
       <div class="k">現貨黃金 XAU/USD</div>
       <div id="spotNow" class="v gold">${spot!=null?fmt(spot):"—"}</div>
-      <div id="spotSub" class="s">${spot!=null ? "代幣溢價 "+pct((last.c/spot-1)*100) : "報價源暫無回應"}</div>
     </div>`;
-  TOPLIVE = {prevClose: prev.c, barTime: tsText(last.t)};
+  TOPLIVE = {prevClose: prev.c};
   $("beat").hidden = !$("live").checked;
 }
 
@@ -1053,10 +1060,6 @@ function applyLivePrice(px){
   const el = $("pxNow");
   el.textContent = fmt(px);
   el.className = "v " + (chg>=0 ? "up" : "down");
-  $("pxSub").innerHTML = `本根 ${pct(chg)}　${TOPLIVE.barTime}`;
-
-  if(LASTSPOT != null && $("spotSub"))
-    $("spotSub").textContent = "代幣溢價 " + pct((px/LASTSPOT - 1) * 100);
 
   for(const p of PANELS){
     if(!p.LIVE) continue;
@@ -1621,8 +1624,8 @@ function panBars(p, d){
   p.ZOOM = {span, off: Math.max(0, Math.min(total - span, off + d))};
   redrawChart(p);
 }
-// 「還原」回到預設的 2000 根，不是整段 20000 根——整段擠在一個畫面看不出東西
-function resetZoom(p){ p.ZOOM = {span: VIEW_BARS, off: 0}; redrawChart(p); }
+// 「還原」回到設定的預設根數，不是整段 20000 根——整段擠在一個畫面看不出東西
+function resetZoom(p){ p.ZOOM = {span: viewBars(p), off: 0}; redrawChart(p); }
 
 PANELS.forEach(p=>{
   const box = $("chartBox" + p.k);
@@ -1778,6 +1781,13 @@ function esc(t){
 ["srcSel","perA","multA","perB","multB","cost","session"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(false));
 });
+["viewA","viewB"].forEach(id=>{
+  $(id).addEventListener("change", ()=>{
+    const p = PAN(id.slice(-1));
+    p.ZOOM = {span: viewBars(p), off: 0};
+    redrawChart(p);
+  });
+});
 ["feed","tfA","tfB","bars"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(true));
 });
@@ -1785,6 +1795,7 @@ $("refresh").addEventListener("click", ()=> run(true));
 
 // 預設值＝經 20000 根／223 天驗證的最佳組合（勝率 56.3%、PF 4.43、淨 +40.6%）
 const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"2m", bars:"20000", srcSel:"hl2",
+                  viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
                   perA:300, multA:23, perB:300, multB:23, cost:0.05, session:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
@@ -1798,7 +1809,8 @@ $("preset").addEventListener("click", ()=>{
   $("perA").value = DEFAULTS.perA; $("multA").value = DEFAULTS.multA;
   $("perB").value = DEFAULTS.perB; $("multB").value = DEFAULTS.multB;
   $("cost").value = DEFAULTS.cost; $("session").checked = DEFAULTS.session;
-  PANELS.forEach(p=>{ p.ZOOM = {span: VIEW_BARS, off: 0}; });
+  $("viewA").value = VIEW_DEFAULT.A; $("viewB").value = VIEW_DEFAULT.B;
+  PANELS.forEach(p=>{ p.ZOOM = {span: viewBars(p), off: 0}; });
   run(needRefetch);
 });
 
