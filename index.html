@@ -367,7 +367,6 @@
       <span class="sigmeta">載入中…</span></div>
     <div class="sigmain"><div class="v mid">—</div></div></div>
   <div class="chartcard">
-    <h2><span class="tag" id="chartTagA">—</span></h2>
     <div class="chartbox" id="chartBoxA">
       <canvas id="cvA"></canvas><canvas class="lv" id="lvA"></canvas>
       <div class="tip" id="tipA"></div>
@@ -386,7 +385,6 @@
       <span class="sigmeta">載入中…</span></div>
     <div class="sigmain"><div class="v mid">—</div></div></div>
   <div class="chartcard">
-    <h2><span class="tag" id="chartTagB">—</span></h2>
     <div class="chartbox" id="chartBoxB">
       <canvas id="cvB"></canvas><canvas class="lv" id="lvB"></canvas>
       <div class="tip" id="tipB"></div>
@@ -1421,10 +1419,6 @@ async function run(refetch = true){
       drawChart(p);
       checkAlarm(p);
 
-      $("chartTag" + p.k).textContent =
-        `${SYMBOL} ・ ${p.tf} ・ ${b.length} 根`
-        + ($("session").checked ? " ・ 已剔除休市" : " ・ 24/7 連續")
-        + ` ・ 顯示 ${Math.min(p.ZOOM.span || b.length, b.length)} 根`;
     }
 
     renderTopCards(PANELS[0].bars, spot);
