@@ -731,7 +731,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.03";
+const VERSION = "V1.02";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
