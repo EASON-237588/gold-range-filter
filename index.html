@@ -102,6 +102,8 @@
     padding:3px 11px;display:flex;flex-direction:column;justify-content:center;
   }
   .sigcap.dir{flex:none;gap:0}
+  .sigcap.wr{flex:none;gap:0;text-align:right}
+  .sigcap.wr .v{font-size:20px}
   .sigcap.det{flex:1;min-width:0;gap:0;overflow:hidden}
   .sigline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;line-height:1.32}
   .sigmeta{font-family:var(--mono);font-size:11px;color:var(--dim2);white-space:nowrap}
@@ -374,6 +376,10 @@
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
+    <div class="sigcap wr">
+      <div class="sigline"><span class="k">勝率</span></div>
+      <div class="v mid">—</div>
+    </div>
   </div>
   <div class="chartcard">
     <div class="chartbox" id="chartBoxA">
@@ -395,6 +401,10 @@
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
+    <div class="sigcap wr">
+      <div class="sigline"><span class="k">勝率</span></div>
+      <div class="v mid">—</div>
+    </div>
   </div>
   <div class="chartcard">
     <div class="chartbox" id="chartBoxB">
@@ -1031,11 +1041,11 @@ function renderSigBox(p){
   let line1 = `<span class="sigmeta">目前參數下區間內未觸發</span>`;
 
   if(lastSig){
-    const sb = bars[lastSig.i], ago = n - lastSig.i;
+    const sb = bars[lastSig.i];
     const chg = (last.c/sb.c - 1) * 100 * lastSig.dir;
     tone = lastSig.dir > 0 ? " long" : " short";
     big  = `<div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>`;
-    line1 = `<span class="sigmeta">${tsText(sb.t)}　${ago} 根前 @ ${fmt(sb.c)}</span>`
+    line1 = `<span class="sigmeta">${tsText(sb.t)}</span>`
           + `<span class="sigmeta">訊號後至今 `
           + `<span id="sigSince${k}" class="${chg>=0?"up":"down"}">${pct(chg)}</span></span>`;
   }
@@ -1046,11 +1056,19 @@ function renderSigBox(p){
       + `<span id="heldFloat${k}" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span></span>`
     : `<span class="sigmeta">持倉 空手　等待下一個訊號</span>`;
 
+  // 勝率取這套策略自己的回測結果，上下兩格是各自的數字
+  const wr = BT.winRate;
+  const wrCls = wr == null ? "mid" : (wr >= 50 ? "up" : "down");
+  const wrTxt = wr == null ? "—" : wr.toFixed(1) + "%";
+
   $("sig" + k).innerHTML =
     `<div class="sigcap dir${tone}">`
     + `<div class="sigline"><span class="tf">${tfLabel(p.tf)}</span></div>${big}</div>`
     + `<div class="sigcap det${tone}">`
-    + `<div class="sigline">${line1}</div><div class="sigline">${line2}</div></div>`;
+    + `<div class="sigline">${line1}</div><div class="sigline">${line2}</div></div>`
+    + `<div class="sigcap wr${tone}">`
+    + `<div class="sigline"><span class="k">勝率</span></div>`
+    + `<div class="v ${wrCls}">${wrTxt}</div></div>`;
 
   p.LIVE = {
     sigPrice: lastSig ? bars[lastSig.i].c : null,
