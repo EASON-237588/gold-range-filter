@@ -4,7 +4,7 @@
 完整移植到前端，並修掉原始碼裡的三個問題。免安裝、免金鑰，開啟即用。
 
 ![週期](https://img.shields.io/badge/週期-11分~日線-e5b53c)
-![資料源](https://img.shields.io/badge/資料源-Binance%20PAXG-58a6ff)
+![資料源](https://img.shields.io/badge/資料源-Binance%20PAXG%20%2B3家備援-58a6ff)
 ![相依](https://img.shields.io/badge/相依套件-0-26a69a)
 
 ## 功能
@@ -30,13 +30,44 @@
 
 ## 資料源
 
-`https://api.binance.com/api/v3/klines`（PAXG/USDT 或 XAUT/USDT）
+主源是 `https://api.binance.com/api/v3/klines`（PAXG/USDT 或 XAUT/USDT）。
 
 PAXG 是 1:1 實體黃金背書的代幣，價格貼著 XAU/USD（溢價通常 < 0.3%）。
 選它的原因是免金鑰、開放 CORS，而且**有真實成交量**——TradingView 的 `TVC:GOLD`
 是現貨報價指數，多數 K 線沒有成交量，任何交易量過濾條件在上面都會恆為 false。
 
 現貨對照價來自 `https://api.gold-api.com/price/XAU`。
+
+### 備援鏈
+
+單一資料源等於單點故障，Binance 打不通整頁就全黑。所以往下接三層：
+
+| 順位 | 資料源 | K 線 | 現價 | 商品 |
+|---|---|---|---|---|
+| 1 | Binance | ✓ | ✓ | PAXGUSDT、XAUTUSDT |
+| 2 | Coinbase | ✓ | ✓ | 只有 PAXG-USD |
+| 3 | OKX | ✓ | ✓ | PAXG-USDT、XAUT-USDT |
+| 4 | gold-api 現貨 | — | ✓ | XAU/USD（不是代幣本身） |
+
+現價與 K 線分開走鏈：現價每秒打一次，換一家的成本很低，一失敗就立刻試下一家；
+K 線換一家卻要重抓幾百個請求，所以只在主源真的抓不到時才切。
+
+**備援不是等價替代。** 實測 2026-09-07 的 PAXG 1 分 K，每分鐘有成交的比例：
+
+| 資料源 | 有成交的分鐘 | 與 Binance 收盤中位偏差 |
+|---|---|---|
+| Binance | 93.7% | — |
+| OKX | 37% | 0.018% |
+| Coinbase | 30% | 0.019% |
+
+價格本身很接近（中位偏差 0.02%），但**成交的稀疏程度差很多**。備援那兩家沒成交的
+分鐘會被補成「沿用前一根收盤、量記 0」的 K 棒，否則同樣一段時間的根數只剩三成，
+Range Filter 的取樣週期意義會整個跑掉。補歸補，那些棒子不是真的行情，
+所以訊號與淨報酬跟平常不會一樣 —— 切到備援時畫面下方會掛一條常駐提醒，
+參數面板也會標出目前的 K 線來源。Binance 恢復後重新整理就會切回主源。
+
+（OKX 那 37% 是它自己回傳零量 K 棒；Coinbase 是乾脆不回傳沒成交的分鐘，
+所以它回來的資料看起來「零量佔 0%」，那是統計錯覺，實際填充率更低。）
 
 ## 三個關鍵修正
 

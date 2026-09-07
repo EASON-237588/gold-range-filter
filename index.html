@@ -164,6 +164,11 @@
   .warn{border-left:2px solid var(--gold);padding-left:11px;margin:9px 0}
 
   footer{color:var(--dim2);font-size:11.5px;text-align:center;line-height:1.8}
+.srcpill{font-size:10px;padding:1px 6px;margin-left:6px;border-radius:99px;
+  background:#4a3a12;color:#ffcf5a;vertical-align:middle}
+.srcwarn{position:fixed;left:50%;transform:translateX(-50%);bottom:64px;z-index:60;
+  width:min(560px,92vw);padding:10px 13px;border-radius:10px;font-size:12px;line-height:1.7;box-sizing:border-box;
+  background:#3a2a08;color:#ffd98a;border:1px solid #6b5010;box-shadow:0 6px 24px #0009}
   .err{
     position:fixed;left:12px;right:12px;top:10px;z-index:50;cursor:pointer;
     background:rgba(35,18,20,.97);border:1px solid var(--down);color:#ffb4b2;
@@ -361,6 +366,7 @@
 </header>
 
 <div class="err" id="errBox"></div>
+<div class="srcwarn" id="srcWarn" hidden></div>
 
 <div class="grid" id="cards"></div>
 
@@ -445,7 +451,7 @@
 <div class="sheet" id="shParams">
   <div class="sheet-bg" data-close></div>
   <div class="sheet-box">
-    <div class="sheet-h"><h3>參數設定</h3><span class="tag" id="paramTag">—</span>
+    <div class="sheet-h"><h3>參數設定</h3><span class="tag" id="paramTag">—</span><span class="tag" id="srcBadge" hidden></span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
   <div class="toolbar">
@@ -696,8 +702,16 @@
         <div class="warn"><b>新聞只是背景資訊。</b>來源是 Google News 的黃金關鍵字，每 10 分鐘換一次，
           跟策略訊號沒有任何連動，不要拿它當進出依據。手指按住跑馬燈可以暫停，方便讀完一則。</div>
 
+        <div class="warn"><b>主源掛了會自動換備援。</b>順位是 Binance → Coinbase → OKX，
+          現價再多一層 gold-api 現貨金價墊底。現價與 K 線分開切換：現價一失敗就立刻換家，
+          K 線因為要重抓幾百個請求，只在主源真的抓不到時才切。<br>
+          <b>但備援不是等價的。</b>實測 PAXG 每分鐘有成交的比例，Binance 是 93.7%，
+          OKX 只有 37%、Coinbase 只有 30%。備援那兩家沒成交的分鐘，會補成「沿用前一根收盤、量記 0」的
+          K 棒，否則同一段時間的根數只剩三成，取樣週期的意義會整個跑掉。補出來的棒子不是真行情，
+          所以切到備援時訊號與淨報酬跟平常不會一樣，畫面下方會掛一條提醒，參數面板也會標出目前來源。</div>
+
         <p style="margin-top:11px;color:var(--dim2)">
-          資料源：Binance PAXG/USDT 或 XAUT/USDT K 線、gold-api.com 的 XAU/USD 現貨、
+          資料源：Binance／Coinbase／OKX 的 PAXG 或 XAUT K 線、gold-api.com 的 XAU/USD 現貨、
           Google News RSS（經 rss2json 轉換）。全部在瀏覽器端直接抓，沒有後端，也沒有任何資料被送出去。</p>
       </div>
       <footer style="margin-top:14px;text-align:left">
@@ -719,7 +733,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.04";
+const VERSION = "V1.05";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -951,26 +965,177 @@ function applySession(bars){
 const NATIVE_TF = new Set(["1m","3m","5m","15m","30m","1h","2h","4h","6h","8h","12h","1d"]);
 const CUSTOM_TF = {"2m":2, "11m":11};
 
-// 單次請求上限 1000 根，超過就用 endTime 往回分頁
-async function fetchRaw(sym, interval, limit, onProgress){
+/* ============ 資料源鏈 ============
+   單一資料源等於單點故障：Binance 打不通整頁就全黑。所以備幾家備援。
+
+   但備援不是等價替代，實測（2026-09-07，PAXG 1 分 K）：
+     Binance   每分鐘有成交的占 93.7%
+     OKX       37%（六成三的 K 棒沒有成交，價格是延續前一根的假動作）
+     Coinbase  30%（它乾脆不回傳沒成交的分鐘）
+   所以備援只在主源失敗時啟用，而且要在畫面上講明白，
+   不能讓使用者以為看到的訊號跟平常同一回事。
+
+   稀疏的那幾家補成連續 1 分線（沿用前一根收盤、量記 0），
+   否則同樣一段時間會少掉大半根數，Range Filter 的週期意義整個跑掉。 */
+
+const PX_TIMEOUT = 12000;
+async function jget(url, ms){
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms || PX_TIMEOUT);
+  try{
+    const r = await fetch(url, {cache:"no-store", signal:c.signal});
+    if(!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  }finally{ clearTimeout(t); }
+}
+
+// 把稀疏的 1 分線補成連續的
+function densify(bars){
+  if(bars.length < 2) return bars;
   const out = [];
-  let endTime = null, guard = 0;
-  while(out.length < limit && guard++ < 450){
-    const need = Math.min(1000, limit - out.length);
-    let url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${need}`;
-    if(endTime !== null) url += `&endTime=${endTime}`;
-    const r = await fetch(url, {cache:"no-store"});
-    if(!r.ok) throw new Error(`Binance API ${r.status}`);
-    const raw = await r.json();
-    if(!Array.isArray(raw) || !raw.length) break;
-    const chunk = raw.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
-    out.unshift(...chunk);
-    endTime = chunk[0].t - 1;
-    if(onProgress) onProgress(out.length, limit);
-    if(chunk.length < need) break;   // 已無更早的歷史
+  for(let i = 0; i < bars.length; i++){
+    out.push(bars[i]);
+    if(i === bars.length - 1) break;
+    const gap = (bars[i+1].t - bars[i].t) / 60000;
+    if(gap > 1 && gap <= 720){          // 超過 12 小時的洞不補，那是資料源真的斷了
+      const c = bars[i].c;
+      for(let k = 1; k < gap; k++)
+        out.push({t: bars[i].t + k*60000, o:c, h:c, l:c, c:c, v:0});
+    }
   }
-  if(!out.length) throw new Error("回傳空資料");
   return out;
+}
+
+const SOURCES = [
+  {
+    id:"binance", name:"Binance", quality:"主源",
+    sym: s => s,
+    async klines(sym, interval, limit, onProgress){
+      const out = []; let endTime = null, guard = 0;
+      while(out.length < limit && guard++ < 450){
+        const need = Math.min(1000, limit - out.length);
+        let url = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${interval}&limit=${need}`;
+        if(endTime !== null) url += `&endTime=${endTime}`;
+        const raw = await jget(url);
+        if(!Array.isArray(raw) || !raw.length) break;
+        const chunk = raw.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+        out.unshift(...chunk);
+        endTime = chunk[0].t - 1;
+        if(onProgress) onProgress(out.length, limit);
+        if(chunk.length < need) break;
+      }
+      return out;
+    },
+    async price(sym){
+      const j = await jget(`https://api.binance.com/api/v3/ticker/price?symbol=${sym}`, 6000);
+      return +j.price;
+    }
+  },
+  {
+    id:"coinbase", name:"Coinbase", quality:"備援",
+    sym: s => ({PAXGUSDT:"PAXG-USD"})[s] || null,
+    async klines(sym, interval, limit, onProgress){
+      if(interval !== "1m") return [];
+      // limit 是「要幾根 1 分線」，等價於「要涵蓋幾分鐘」。
+      // 這家沒成交的分鐘不回傳，用根數當條件會抓過頭，所以直接比時間跨度。
+      const out = []; let end = Math.floor(Date.now()/1000), guard = 0;
+      const stopAt = Math.floor(Date.now()/1000) - limit*60;
+      while(end > stopAt && guard++ < 400){
+        const start = Math.max(stopAt, end - 300*60);
+        const raw = await jget(`https://api.exchange.coinbase.com/products/${sym}/candles`
+                             + `?granularity=60&start=${start}&end=${end}`);
+        if(!Array.isArray(raw) || !raw.length) break;
+        // Coinbase 回 [time, low, high, open, close, volume]，由新到舊
+        const chunk = raw.map(k => ({t:k[0]*1000, o:+k[3], h:+k[2], l:+k[1], c:+k[4], v:+k[5]}))
+                         .sort((a,b) => a.t - b.t);
+        out.unshift(...chunk);
+        end = Math.floor(chunk[0].t/1000) - 60;
+        if(onProgress) onProgress(Math.round((Date.now()/1000 - end)/60), limit);
+      }
+      return densify(out);
+    },
+    async price(sym){
+      const j = await jget(`https://api.exchange.coinbase.com/products/${sym}/ticker`, 6000);
+      return +j.price;
+    }
+  },
+  {
+    id:"okx", name:"OKX", quality:"備援",
+    sym: s => ({PAXGUSDT:"PAXG-USDT", XAUTUSDT:"XAUT-USDT"})[s] || null,
+    async klines(sym, interval, limit, onProgress){
+      if(interval !== "1m") return [];
+      const out = []; let after = null, guard = 0;
+      const stopAt = Date.now() - limit*60000;
+      while((after === null || after > stopAt) && guard++ < 400){
+        let url = `https://www.okx.com/api/v5/market/history-candles?instId=${sym}&bar=1m&limit=300`;
+        if(after !== null) url += `&after=${after}`;
+        const j = await jget(url);
+        const raw = j && j.data;
+        if(!Array.isArray(raw) || !raw.length) break;
+        const chunk = raw.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
+                         .sort((a,b) => a.t - b.t);
+        out.unshift(...chunk);
+        after = chunk[0].t;
+        if(onProgress) onProgress(Math.round((Date.now() - after)/60000), limit);
+      }
+      return densify(out);
+    },
+    async price(sym){
+      const j = await jget(`https://www.okx.com/api/v5/market/ticker?instId=${sym}`, 6000);
+      return +j.data[0].last;
+    }
+  },
+];
+
+// 現價的最後一道防線：現貨黃金。不是 PAXG 本身，只夠讓畫面別空著。
+const SPOT_FALLBACK = {
+  id:"spot", name:"現貨金價", quality:"替代",
+  async price(){
+    const j = await jget("https://api.gold-api.com/price/XAU", 6000);
+    return typeof j.price === "number" ? j.price : null;
+  }
+};
+
+// 目前實際在用的資料源
+let SRC_KLINE = "binance", SRC_TICK = "binance";
+
+function srcBadge(){
+  const el = $("srcBadge");
+  if(!el) return;
+  const k = SOURCES.find(x => x.id === SRC_KLINE);
+  const degraded = SRC_KLINE !== "binance";
+  el.textContent = degraded ? `K線來源：${k ? k.name : SRC_KLINE}（備援）` : "";
+  el.hidden = !degraded;
+  const w = $("srcWarn");
+  if(w){
+    w.hidden = !degraded;
+    if(degraded) w.innerHTML =
+      `<b>目前用的是備援資料源（${k ? k.name : SRC_KLINE}）。</b>`
+      + `這家的 PAXG 成交比 Binance 稀疏很多，沒成交的分鐘是用前一根收盤補的，`
+      + `所以訊號與淨報酬跟平常不會一樣，只能當作參考。Binance 恢復後按重新整理就會切回去。`;
+  }
+}
+
+/* 依序試每個資料源，第一個成功的就用它。
+   把失敗原因累積起來，全掛掉時一次講清楚，而不是只報最後一家。 */
+async function fetchRaw(sym, interval, limit, onProgress){
+  const errs = [];
+  for(const src of SOURCES){
+    const mapped = src.sym(sym);
+    if(!mapped){ errs.push(`${src.name}：沒有這個商品`); continue; }
+    try{
+      const bars = await src.klines(mapped, interval, limit, onProgress);
+      if(bars && bars.length){
+        SRC_KLINE = src.id;
+        srcBadge();
+        return bars;
+      }
+      errs.push(`${src.name}：回傳空資料`);
+    }catch(e){
+      errs.push(`${src.name}：${e.message}`);
+    }
+  }
+  throw new Error(errs.join("；"));
 }
 
 // 由 1 分 K 線合成任意分鐘週期（時間桶以 Unix epoch 對齊）
@@ -1043,7 +1208,7 @@ function renderTopCards(bars, spot){
   const chg = (last.c/prev.c - 1) * 100;   // 只用來決定現價的漲跌顏色
   $("cards").innerHTML = `
     <div class="card">
-      <div class="k">現價（${SYMBOL.replace("USDT","")}）<span id="beat" class="beat" hidden></span></div>
+      <div class="k">現價（${SYMBOL.replace("USDT","")}）<span id="beat" class="beat" hidden></span><span id="tickSrc" class="srcpill" hidden></span></div>
       <div id="pxNow" class="v ${chg>=0?"up":"down"}">${fmt(last.c)}</div>
     </div>
     <div class="card">
@@ -1134,13 +1299,39 @@ function applyLivePrice(px){
   }
 }
 
+/* 現價的資料源鏈跟 K 線分開走：
+   現價每秒打一次，換家的成本很低；歷史換家卻要重抓幾百個請求。
+   所以現價一失敗就立刻試下一家，不必等到連續失敗八次。 */
+async function tickOnce(){
+  const errs = [];
+  for(const src of SOURCES){
+    const mapped = src.sym(SYMBOL);
+    if(!mapped) continue;
+    try{
+      const px = await src.price(mapped);
+      if(isFinite(px) && px > 0) return {px, id:src.id, name:src.name};
+    }catch(e){ errs.push(src.name); }
+  }
+  try{
+    const px = await SPOT_FALLBACK.price();
+    if(isFinite(px) && px > 0) return {px, id:SPOT_FALLBACK.id, name:SPOT_FALLBACK.name};
+  }catch(e){ errs.push(SPOT_FALLBACK.name); }
+  throw new Error(errs.join("／") + " 都取不到");
+}
+
 async function tickPrice(){
   if(busy || document.hidden || !$("live").checked) return;
   try{
-    const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${SYMBOL}`, {cache:"no-store"});
-    if(!r.ok) throw new Error(r.status);
-    const px = +(await r.json()).price;
-    applyLivePrice(px);
+    const got = await tickOnce();
+    applyLivePrice(got.px);
+    if(got.id !== SRC_TICK){      // 換家了才動 DOM
+      SRC_TICK = got.id;
+      const el = $("tickSrc");
+      if(el){
+        el.textContent = got.id === "binance" ? "" : got.name;
+        el.hidden = got.id === "binance";
+      }
+    }
     liveFail = 0;
     // 現貨每 15 秒跟一次就好，那支 API 沒必要每秒打
     if(++spotTick % 15 === 0){
@@ -1148,10 +1339,11 @@ async function tickPrice(){
       if(sp != null){ LASTSPOT = sp; if($("spotNow")) $("spotNow").textContent = fmt(sp); }
     }
   }catch(e){
-    if(++liveFail >= 8){          // 連續失敗才停，避免偶發抖動就關掉
+    if(++liveFail >= 8){          // 全部資料源連續失敗才停
       $("live").checked = false;
       resetLive();
-      showErr("<b>即時報價已暫停：</b>連續 8 次取不到 Binance 報價，可能是網路或限流。可在參數設定重新勾選「現價每秒更新」。");
+      showErr("<b>即時報價已暫停：</b>連續 8 次所有資料源都取不到報價，"
+        + "多半是這條網路連不出去。可在參數設定重新勾選「現價每秒更新」。");
     }
   }
 }
@@ -1507,8 +1699,8 @@ async function run(refetch = true){
   }catch(err){
     setStatus("err", "更新失敗");
     showErr(`<b>取得資料失敗：</b>${err.message}<br>
-      可能原因：網路中斷，或所在網路無法連到 Binance 公開 API。
-      可改選另一個資料源重試；圖表仍會以最後一次成功取得的資料計算。`);
+      Binance、Coinbase、OKX 三家都試過了，所以多半是這條網路連不出去，
+      而不是單一交易所的問題。圖表仍會以最後一次成功取得的資料計算。`);
   }finally{
     busy = false;
   }
@@ -1896,9 +2088,9 @@ async function syncTail(){
   const maxMin = customs.length ? Math.max(...customs.map(p => CUSTOM_TF[p.tf])) : 0;
 
   if(customs.length){
-    const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=1m&limit=${maxMin*4}`, {cache:"no-store"});
-    if(!r.ok) throw new Error(`Binance API ${r.status}`);
-    const raw = (await r.json()).map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+    // 補尾巴走的是目前實際在用的那一家，不要寫死 Binance——
+    // 否則主源掛掉時會拿 Binance 的尾巴去接備援的歷史，兩份資料混在一起。
+    const raw = await fetchRaw(SYMBOL, "1m", maxMin*4, null);
     if(raw.length){
       const cut1 = raw[0].t;
       RAW1M = RAW1M.filter(b => b.t < cut1).concat(raw);
@@ -1908,9 +2100,8 @@ async function syncTail(){
   for(const p of PANELS){
     const cap = p.need || 20000;
     if(NATIVE_TF.has(p.tf)){
-      const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${SYMBOL}&interval=${p.tf}&limit=4`, {cache:"no-store"});
-      if(!r.ok) continue;
-      const tail = (await r.json()).map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+      let tail = [];
+      try{ tail = await fetchRaw(SYMBOL, p.tf, 4, null); }catch(e){ continue; }
       if(!tail.length) continue;
       const c0 = tail[0].t;
       p.raw = p.raw.filter(b => b.t < c0).concat(tail);
