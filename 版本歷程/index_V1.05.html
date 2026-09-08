@@ -540,11 +540,11 @@
   <div class="sep"></div>
   <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">下方顯示根數
     <input type="number" id="viewB" value="1250" min="40" step="50"></label>
-  <label>下方取樣週期 <input type="number" id="perB" value="120" min="1"></label>
+  <label>下方取樣週期 <input type="number" id="perB" value="60" min="1"></label>
   <label>下方範圍乘數 <input type="number" id="multB" value="30" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
-    <input type="number" id="cost" value="0.115" step="0.01" min="0"></label>
+    <input type="number" id="cost" value="0.05" step="0.01" min="0"></label>
   <div class="sep"></div>
   <label class="chk" title="剔除黃金休市時段的K線，讓週末跳空真實出現，與 TVC:GOLD／XAUUSD 對齊">
     <input type="checkbox" id="session" checked> 黃金交易時段</label>
@@ -733,7 +733,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.06";
+const VERSION = "V1.05";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -2046,18 +2046,11 @@ function esc(t){
 });
 $("refresh").addEventListener("click", ()=> run(true));
 
-// 預設值＝223 天、成本 0.115%／單趟 驗證過的組合（V1.06 重掃 2537 組後更新）
-//   11 分 300/23：淨 +46.0% 複利、17 筆、回撤 6.4%。per 240~480 在 mult=23 上都是 +40~47%，
-//     位在高原正中央而非單點運氣，所以維持不動。
-//   2 分 120/30：淨 +33.6% 複利、78 筆、回撤 14.7%。原本 60/30 的中段是虧的
-//     （三段 [+22.7,-5.9,+11.0]）且卡在高原邊緣；per 移到 110~150 才進平坦區，
-//     三段變成全正 [+22.9,+2.5,+8.1]，前後半獨立重跑也從 +9.6%/+19.1% 改善為 +20.1%/+16.4%。
-//   成本 0.115% = Binance VIP0 taker 0.10% + $1 萬單滑價 0.013%（實測簿深）。
-//     PAXG 不在零手續費促銷名單內。有付 BNB 抵手續費者改 0.09%。
+// 預設值＝經 20000 根／223 天驗證的最佳組合（勝率 56.3%、PF 4.43、淨 +40.6%）
 const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"2m",
                   barsA:"20000", barsB:"110000", srcSel:"hl2",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
-                  perA:300, multA:23, perB:120, multB:30, cost:0.115, session:true};
+                  perA:300, multA:23, perB:60, multB:30, cost:0.05, session:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
                    || $("tfA").value   !== DEFAULTS.tfA
