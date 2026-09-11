@@ -370,7 +370,7 @@
 <section class="strat">
   <div class="sigrow" id="sigB">
     <div class="sigcap dir">
-      <div class="sigline"><span class="tf">15 分</span></div>
+      <div class="sigline"><span class="tf">日線</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -448,12 +448,12 @@
       <option value="3m">3 分</option>
       <option value="5m">5 分</option>
       <option value="11m">11 分 ✦</option>
-      <option value="15m" selected>15 分</option>
+      <option value="15m">15 分</option>
       <option value="30m">30 分</option>
       <option value="1h">1 小時</option>
       <option value="2h">2 小時</option>
       <option value="4h">4 小時</option>
-      <option value="1d">日線</option>
+      <option value="1d" selected>日線</option>
     </select>
   </label>
   <label title="這套策略拿幾根 K 線做指標與回測。週期越短要越多根才涵蓋同樣天數">上方根數
@@ -477,14 +477,14 @@
     <select id="barsB">
       <option value="500">500</option>
       <option value="1000">1,000</option>
-      <option value="2000">2,000</option>
+      <option value="2000" selected>2,000</option>
       <option value="3000">3,000</option>
       <option value="5000">5,000</option>
       <option value="10000">10,000</option>
       <option value="15000">15,000</option>
       <option value="20000">20,000</option>
       <option value="30000">30,000</option>
-      <option value="50000" selected>50,000</option>
+      <option value="50000">50,000</option>
       <option value="80000">80,000</option>
       <option value="110000">110,000</option>
       <option value="140000">140,000</option>
@@ -504,9 +504,9 @@
   <label>上方範圍乘數 <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">下方顯示根數
-    <input type="number" id="viewB" value="900" min="40" step="50"></label>
-  <label>下方取樣週期 <input type="number" id="perB" value="100" min="1"></label>
-  <label>下方範圍乘數 <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
+    <input type="number" id="viewB" value="250" min="40" step="50"></label>
+  <label>下方取樣週期 <input type="number" id="perB" value="25" min="1"></label>
+  <label>下方範圍乘數 <input type="number" id="multB" value="8" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
     <input type="number" id="cost" value="0.115" step="0.01" min="0"></label>
@@ -630,7 +630,7 @@
     <div class="sheet-b">
       <div class="notes">
         <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。最上面是現價，
-          下面兩張圖是兩套策略（上方 11 分、下方 15 分），最底下五個鈕點開才是細節。</p>
+          下面兩張圖是兩套策略（上方 11 分、下方日線），最底下五個鈕點開才是細節。</p>
 
         <div class="warn"><b>更新分三層，成本差很多。</b><br>
           <b>1. 現價每 1 秒</b>——一支報價 API，只改現價、代幣溢價、訊號後至今、持倉浮動這幾個數字，
@@ -664,13 +664,11 @@
         <div class="warn"><b>訊號會盤中反覆。</b>最後一根 K 線還沒收盤，
           所以訊號有可能盤中出現、收盤前又縮回去。要確認，看訊號歷史裡那筆的時間是不是已經過了一根 K 的長度。</div>
 
-        <div class="warn"><b>下方是 15 分 100/23，也就是你在 TradingView 上的原始參數。</b>
-          PAXG 2020–2026 六年回測（多空都做、已扣成本）：128 筆、勝率 45%、獲利因子 1.62、
-          平均持倉約 12 天，總報酬 +102%、最大回撤 19%；同期一直抱著 +126%、回撤 30%。
-          報酬略少，但回撤少三分之一，<b>風險調整後贏過一直抱著</b>（只做多的版本又更好一點）。<br>
-          要知道的是：<b>獲利很集中</b>，前三筆就占淨利七成；逐年看它贏在 2021、2026 這種跌勢或盤整年，
-          2023–2025 的多頭每年都落後一直抱著。空單六年下來是小賠，賣出訊號當成「多單先出場」比較合適。<br>
-          畫面上的淨報酬只算最近 50,000 根（約兩年），跟上面六年的數字不會一樣。</div>
+        <div class="warn"><b>下方是日線，用來看大方向。</b>一根 K 就是一天，訊號一年只有兩三次，
+          一次持倉常是幾週到幾個月。參數 25/8 是在 PAXG 近 6 年與 GC=F 20 年日線上都落在高原裡的組合。<br>
+          但要先知道：<b>它跑輸一直抱著黃金</b>（同期 PAXG 一直抱約 +135%，這組約 +61%），
+          而且兩個樣本的<b>獲利都來自多單，空單長期是賠的</b>。看到賣出訊號，把它當成「多單該先出場」，
+          不要當成放空的理由。</div>
 
         <div class="warn"><b>主源掛了會自動換備援。</b>順位是 Binance → Coinbase → OKX，
           現價再多一層 gold-api 現貨金價墊底。現價與 K 線分開切換：現價一失敗就立刻換家，
@@ -703,7 +701,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.08";
+const VERSION = "V1.07";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -906,18 +904,18 @@ let RAW1M = [], SYMBOL = "";
 
 /* 畫面預設只顯示最近這麼多根；統計與訊號仍吃滿全部根數。
    兩套策略的週期不同，同樣根數涵蓋的天數差很多，所以各自設定。 */
-const VIEW_DEFAULT = {A: 600, B: 900};
+const VIEW_DEFAULT = {A: 600, B: 250};
 function viewBars(p){
   const v = +$("view" + p.k).value;
   return v > 0 ? v : VIEW_DEFAULT[p.k];
 }
 
-/* 上方預設 11 分（由 1 分線聚合），下方預設 15 分（交易所原生 15m K，另外抓）。
-   下方的沿革：V1.06 以前 2 分 → V1.07 日線 25/8 → V1.08 15 分 100/23（使用者 TradingView 原始參數）。 */
+/* 上方預設 11 分（由 1 分線聚合），下方預設日線（交易所原生 1d K，另外抓）。
+   V1.07 以前下方是 2 分；2 分在較長的樣本上找不到站得住的參數，改成看大方向的日線。 */
 const PANELS = [
   {k:"A", label:"上方", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.A, off:0}, LIVE:null},
-  {k:"B", label:"下方", tf:"15m", bars:[], R:null, BT:null, VIEW:null,
+  {k:"B", label:"下方", tf:"1d",  bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.B, off:0}, LIVE:null},
 ];
 const PAN = k => PANELS.find(p => p.k === k);
@@ -1011,9 +1009,8 @@ const SOURCES = [
     id:"coinbase", name:"Coinbase", quality:"備援",
     sym: s => ({PAXGUSDT:"PAXG-USD"})[s] || null,
     async klines(sym, interval, limit, onProgress){
-      // 只接 1 分（給合成週期用）、15 分與日線；其他原生週期這家不當備援。
-      // 15 分以上沒成交的區間同樣不回傳，但這些週期不補棒——稀疏程度遠比 1 分輕微。
-      const gran = ({"1m":60, "15m":900, "1d":86400})[interval];
+      // 只接 1 分（給合成週期用）與日線（下方預設）；其他原生週期這家不當備援
+      const gran = ({"1m":60, "1d":86400})[interval];
       if(!gran) return [];
       // limit 是「要幾根」，等價於「要涵蓋幾個 gran」。
       // 這家沒成交的區間不回傳，用根數當條件會抓過頭，所以直接比時間跨度。
@@ -1043,9 +1040,9 @@ const SOURCES = [
     sym: s => ({PAXGUSDT:"PAXG-USDT", XAUTUSDT:"XAUT-USDT"})[s] || null,
     async klines(sym, interval, limit, onProgress){
       // 日線用 1Dutc：以 UTC 00:00 切日，才跟 Binance 的日 K 對得上
-      const bar = ({"1m":"1m", "15m":"15m", "1d":"1Dutc"})[interval];
+      const bar = ({"1m":"1m", "1d":"1Dutc"})[interval];
       if(!bar) return [];
-      const step = ({"1m":60000, "15m":900000, "1d":86400000})[interval];
+      const step = interval === "1d" ? 86400000 : 60000;
       const out = []; let after = null, guard = 0;
       const stopAt = Date.now() - limit*step;
       while((after === null || after > stopAt) && guard++ < 400){
@@ -1142,7 +1139,7 @@ function aggregate(bars1m, minutes){
 }
 
 /* 合成週期（2 分、11 分）都由 1 分線聚合；兩邊都選合成週期時只抓一次最長的那份共用，
-   否則等於把最慢的那步做兩遍。原生週期（例如下方預設的 15 分）各自另抓。 */
+   否則等於把最慢的那步做兩遍。原生週期（例如下方預設的日線）各自另抓。 */
 async function fetchAll(onProgress){
   const custom = PANELS.filter(p => !NATIVE_TF.has(p.tf));
   if(custom.length){
@@ -1980,21 +1977,17 @@ $("refresh").addEventListener("click", ()=> run(true));
 // 預設值（成本 0.115%／單趟）
 //   11 分 300/23：223 天驗證過的組合（V1.06 重掃 2537 組）。淨 +46.0% 複利、17 筆、回撤 6.4%。
 //     per 240~480 在 mult=23 上都是 +40~47%，位在高原正中央而非單點運氣。
-//   15 分 100/23（V1.08 取代日線 25/8）：使用者 TradingView 的原始參數，不是在驗證資料上挑的，
-//     所以 6 年 PAXG 等於一次樣本外檢驗。2020-09~2026-09：128 筆、獲利因子 1.62，
-//     逐根複利 +102%／回撤 19.1%，全抱 +126%／29.7%，年化÷回撤 0.65 對 0.49（只做多 0.75）。
-//     per 70~150 × mult 20~23 全部 +63~+100% 單利：per 是高原、mult 是窄脊，不要動 mult。
-//     弱點：前三筆占淨利 73%；2023~2025 多頭逐年落後全抱，贏在 2021 與 2026。
-//     根數 50,000（約兩年）是載入時間的折衷：抓滿 6 年要兩百多個請求。
-//   日線 25/8（V1.07）被換掉的原因：三段第一段是虧的，且沒贏過全抱，只能當大方向參考。
+//   日線 25/8（V1.07 取代 2 分 120/30）：mult=8 這一欄在 PAXG 近 6 年（per 10~50 全部 +18~+77%）
+//     與 GC=F 20 年（per 10~50 全部 +117~+174%）上都是正的，是兩個樣本都站得住的高原；
+//     mult 1~6 則正負亂跳。這組仍跑輸一直抱著，且兩個樣本的空單都是負貢獻——說明面板有寫。
 //   2 分為何拿掉：它的參數只在 223 天這一段跌勢上驗證過。2026-09-11 用 6 年 PAXG 與
 //     2 年 GC=F 掃 1/2/4 小時與日線，及格的參數零星出現、換個資料源就不重現。
 //   成本 0.115% = Binance VIP0 taker 0.10% + $1 萬單滑價 0.013%（實測簿深）。
 //     PAXG 不在零手續費促銷名單內。有付 BNB 抵手續費者改 0.09%。
-const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"15m",
-                  barsA:"20000", barsB:"50000", srcSel:"hl2",
+const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"1d",
+                  barsA:"20000", barsB:"2000", srcSel:"hl2",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
-                  perA:300, multA:23, perB:100, multB:23, cost:0.115, session:true};
+                  perA:300, multA:23, perB:25, multB:8, cost:0.115, session:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
                    || $("tfA").value   !== DEFAULTS.tfA
