@@ -28,7 +28,7 @@
     font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
     font-size:14px; line-height:1.55;
   }
-  /* 單頁外框：頭、卡片、圖、底部分頁列，圖吃掉剩下的高度 */
+  /* 單頁外框：頭、卡片、跑馬燈、圖、底部分頁列，圖吃掉剩下的高度 */
   .app{
     max-width:1440px;margin:0 auto;height:100dvh;
     display:flex;flex-direction:column;gap:11px;padding:14px 16px 0;
@@ -236,6 +236,30 @@
   .alarm-s{font-size:12.5px;color:var(--dim);line-height:1.7;margin-bottom:11px}
   .alarm-in button{width:100%;padding:10px}
 
+  /* ---- 新聞跑馬燈 ---- */
+  .ticker{
+    flex:none;display:flex;align-items:center;height:34px;overflow:hidden;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  }
+  .ticker-tag{
+    flex:none;height:100%;display:flex;align-items:center;padding:0 10px;
+    font-size:10px;letter-spacing:1.5px;color:var(--gold);
+    background:rgba(229,181,60,.08);border-right:1px solid var(--line);
+  }
+  .ticker-view{flex:1;min-width:0;height:100%;position:relative;overflow:hidden}
+  .ticker-track{
+    position:absolute;top:0;left:0;height:100%;display:flex;align-items:center;
+    white-space:nowrap;will-change:transform;
+  }
+  .ticker-track.run{animation:marquee linear infinite}
+  @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .ticker-view:hover .ticker-track{animation-play-state:paused}
+  .ticker .it{font-size:12px;color:var(--dim);padding-right:34px;position:relative}
+  .ticker .it b{color:var(--txt);font-weight:500}
+  .ticker .it .src{color:var(--dim2);font-size:11px}
+  .ticker .it::after{content:"◆";position:absolute;right:13px;color:var(--gold);opacity:.5;font-size:9px}
+  .ticker .idle{font-size:12px;color:var(--dim2);padding-left:11px}
+
   /* 現價旁的即時心跳點 */
   .beat{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--up);
         margin-left:6px;vertical-align:middle;animation:beat 1s ease-in-out infinite}
@@ -251,6 +275,8 @@
     .card .k{font-size:10px;margin-bottom:2px}
     .card .v{font-size:17px}
     .card .s{font-size:10px;line-height:1.45}
+    .ticker{height:30px}
+    .ticker .it{font-size:11.5px}
     .chartcard{padding:9px 10px}
     .legend{gap:9px;font-size:10px;margin-top:6px}
     .tab{font-size:11px;padding:9px 2px}
@@ -305,6 +331,8 @@
     .card .k{font-size:9.5px;margin-bottom:1px}
     .card .v{font-size:15px}
     .card .s{font-size:9.5px;line-height:1.35;max-height:2.7em;overflow:hidden}
+    .ticker{height:24px}
+    .ticker .it{font-size:11px}
     .chartcard{padding:7px 9px}
     .chartcard h2{display:none}      /* 資訊在頁首已經有了 */
     .legend{display:none}
@@ -342,6 +370,13 @@
 
 <div class="grid" id="cards"></div>
 
+<div class="ticker">
+  <span class="ticker-tag">新聞</span>
+  <div class="ticker-view">
+    <div class="ticker-track" id="tickerTrack"><span class="idle">讀取最新黃金新聞…</span></div>
+  </div>
+</div>
+
 <section class="strat">
   <div class="sigrow" id="sigA">
     <div class="sigcap dir">
@@ -370,7 +405,7 @@
 <section class="strat">
   <div class="sigrow" id="sigB">
     <div class="sigcap dir">
-      <div class="sigline"><span class="tf">日線</span></div>
+      <div class="sigline"><span class="tf">2 分</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -444,7 +479,7 @@
   <label>下方週期
     <select id="tfB">
       <option value="1m">1 分</option>
-      <option value="2m">2 分 ✦</option>
+      <option value="2m" selected>2 分 ✦</option>
       <option value="3m">3 分</option>
       <option value="5m">5 分</option>
       <option value="11m">11 分 ✦</option>
@@ -453,7 +488,7 @@
       <option value="1h">1 小時</option>
       <option value="2h">2 小時</option>
       <option value="4h">4 小時</option>
-      <option value="1d" selected>日線</option>
+      <option value="1d">日線</option>
     </select>
   </label>
   <label title="這套策略拿幾根 K 線做指標與回測。週期越短要越多根才涵蓋同樣天數">上方根數
@@ -477,7 +512,7 @@
     <select id="barsB">
       <option value="500">500</option>
       <option value="1000">1,000</option>
-      <option value="2000" selected>2,000</option>
+      <option value="2000">2,000</option>
       <option value="3000">3,000</option>
       <option value="5000">5,000</option>
       <option value="10000">10,000</option>
@@ -486,7 +521,7 @@
       <option value="30000">30,000</option>
       <option value="50000">50,000</option>
       <option value="80000">80,000</option>
-      <option value="110000">110,000</option>
+      <option value="110000" selected>110,000</option>
       <option value="140000">140,000</option>
     </select>
   </label>
@@ -504,9 +539,9 @@
   <label>上方範圍乘數 <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">下方顯示根數
-    <input type="number" id="viewB" value="250" min="40" step="50"></label>
-  <label>下方取樣週期 <input type="number" id="perB" value="25" min="1"></label>
-  <label>下方範圍乘數 <input type="number" id="multB" value="8" min="0.1" step="0.5"></label>
+    <input type="number" id="viewB" value="1250" min="40" step="50"></label>
+  <label>下方取樣週期 <input type="number" id="perB" value="120" min="1"></label>
+  <label>下方範圍乘數 <input type="number" id="multB" value="30" min="0.1" step="0.5"></label>
   <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
     <input type="number" id="cost" value="0.115" step="0.01" min="0"></label>
@@ -629,8 +664,8 @@
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
       <div class="notes">
-        <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。最上面是現價，
-          下面兩張圖是兩套策略（上方 11 分、下方日線），最底下五個鈕點開才是細節。</p>
+        <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。上面四張卡是現在的狀態，
+          中間跑馬燈是網路上最新的黃金新聞，下面是主圖，最底下五個鈕點開才是細節。</p>
 
         <div class="warn"><b>更新分三層，成本差很多。</b><br>
           <b>1. 現價每 1 秒</b>——一支報價 API，只改現價、代幣溢價、訊號後至今、持倉浮動這幾個數字，
@@ -664,11 +699,8 @@
         <div class="warn"><b>訊號會盤中反覆。</b>最後一根 K 線還沒收盤，
           所以訊號有可能盤中出現、收盤前又縮回去。要確認，看訊號歷史裡那筆的時間是不是已經過了一根 K 的長度。</div>
 
-        <div class="warn"><b>下方是日線，用來看大方向。</b>一根 K 就是一天，訊號一年只有兩三次，
-          一次持倉常是幾週到幾個月。參數 25/8 是在 PAXG 近 6 年與 GC=F 20 年日線上都落在高原裡的組合。<br>
-          但要先知道：<b>它跑輸一直抱著黃金</b>（同期 PAXG 一直抱約 +135%，這組約 +61%），
-          而且兩個樣本的<b>獲利都來自多單，空單長期是賠的</b>。看到賣出訊號，把它當成「多單該先出場」，
-          不要當成放空的理由。</div>
+        <div class="warn"><b>新聞只是背景資訊。</b>來源是 Google News 的黃金關鍵字，每 10 分鐘換一次，
+          跟策略訊號沒有任何連動，不要拿它當進出依據。手指按住跑馬燈可以暫停，方便讀完一則。</div>
 
         <div class="warn"><b>主源掛了會自動換備援。</b>順位是 Binance → Coinbase → OKX，
           現價再多一層 gold-api 現貨金價墊底。現價與 K 線分開切換：現價一失敗就立刻換家，
@@ -679,8 +711,8 @@
           所以切到備援時訊號與淨報酬跟平常不會一樣，畫面下方會掛一條提醒，參數面板也會標出目前來源。</div>
 
         <p style="margin-top:11px;color:var(--dim2)">
-          資料源：Binance／Coinbase／OKX 的 PAXG 或 XAUT K 線、gold-api.com 的 XAU/USD 現貨。
-          全部在瀏覽器端直接抓，沒有後端，也沒有任何資料被送出去。</p>
+          資料源：Binance／Coinbase／OKX 的 PAXG 或 XAUT K 線、gold-api.com 的 XAU/USD 現貨、
+          Google News RSS（經 rss2json 轉換）。全部在瀏覽器端直接抓，沒有後端，也沒有任何資料被送出去。</p>
       </div>
       <footer style="margin-top:14px;text-align:left">
   配色採台股慣例：<span class="up">上漲／多方為紅</span>、<span class="down">下跌／空方為綠</span>。
@@ -701,18 +733,12 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.07";
+const VERSION = "V1.06";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
   return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-// 日線的時分沒有意義（UTC 00:00 開盤，本地永遠是 08:00），改標年月日
-function dayText(ms){
-  const d = new Date(ms), p = n => String(n).padStart(2,"0");
-  return `${p(d.getFullYear()%100)}/${p(d.getMonth()+1)}/${p(d.getDate())}`;
-}
-const barTime = (ms, tf) => tf === "1d" ? dayText(ms) : tsText(ms);
 
 /* ============ Pine 等價指標函式 ============ */
 // ta.ema：alpha = 2/(n+1)，以第一筆有效值起算
@@ -904,18 +930,18 @@ let RAW1M = [], SYMBOL = "";
 
 /* 畫面預設只顯示最近這麼多根；統計與訊號仍吃滿全部根數。
    兩套策略的週期不同，同樣根數涵蓋的天數差很多，所以各自設定。 */
-const VIEW_DEFAULT = {A: 600, B: 250};
+const VIEW_DEFAULT = {A: 600, B: 1250};
 function viewBars(p){
   const v = +$("view" + p.k).value;
   return v > 0 ? v : VIEW_DEFAULT[p.k];
 }
 
-/* 上方預設 11 分（由 1 分線聚合），下方預設日線（交易所原生 1d K，另外抓）。
-   V1.07 以前下方是 2 分；2 分在較長的樣本上找不到站得住的參數，改成看大方向的日線。 */
+/* 兩套策略共用同一份行情，只是聚合成不同週期。
+   A 是慢的（預設 11 分），B 是快的（預設 2 分）。 */
 const PANELS = [
   {k:"A", label:"上方", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.A, off:0}, LIVE:null},
-  {k:"B", label:"下方", tf:"1d",  bars:[], R:null, BT:null, VIEW:null,
+  {k:"B", label:"下方", tf:"2m",  bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.B, off:0}, LIVE:null},
 ];
 const PAN = k => PANELS.find(p => p.k === k);
@@ -1009,26 +1035,24 @@ const SOURCES = [
     id:"coinbase", name:"Coinbase", quality:"備援",
     sym: s => ({PAXGUSDT:"PAXG-USD"})[s] || null,
     async klines(sym, interval, limit, onProgress){
-      // 只接 1 分（給合成週期用）與日線（下方預設）；其他原生週期這家不當備援
-      const gran = ({"1m":60, "1d":86400})[interval];
-      if(!gran) return [];
-      // limit 是「要幾根」，等價於「要涵蓋幾個 gran」。
-      // 這家沒成交的區間不回傳，用根數當條件會抓過頭，所以直接比時間跨度。
+      if(interval !== "1m") return [];
+      // limit 是「要幾根 1 分線」，等價於「要涵蓋幾分鐘」。
+      // 這家沒成交的分鐘不回傳，用根數當條件會抓過頭，所以直接比時間跨度。
       const out = []; let end = Math.floor(Date.now()/1000), guard = 0;
-      const stopAt = Math.floor(Date.now()/1000) - limit*gran;
+      const stopAt = Math.floor(Date.now()/1000) - limit*60;
       while(end > stopAt && guard++ < 400){
-        const start = Math.max(stopAt, end - 300*gran);
+        const start = Math.max(stopAt, end - 300*60);
         const raw = await jget(`https://api.exchange.coinbase.com/products/${sym}/candles`
-                             + `?granularity=${gran}&start=${start}&end=${end}`);
+                             + `?granularity=60&start=${start}&end=${end}`);
         if(!Array.isArray(raw) || !raw.length) break;
         // Coinbase 回 [time, low, high, open, close, volume]，由新到舊
         const chunk = raw.map(k => ({t:k[0]*1000, o:+k[3], h:+k[2], l:+k[1], c:+k[4], v:+k[5]}))
                          .sort((a,b) => a.t - b.t);
         out.unshift(...chunk);
-        end = Math.floor(chunk[0].t/1000) - gran;
-        if(onProgress) onProgress(Math.round((Date.now()/1000 - end)/gran), limit);
+        end = Math.floor(chunk[0].t/1000) - 60;
+        if(onProgress) onProgress(Math.round((Date.now()/1000 - end)/60), limit);
       }
-      return gran === 60 ? densify(out) : out;
+      return densify(out);
     },
     async price(sym){
       const j = await jget(`https://api.exchange.coinbase.com/products/${sym}/ticker`, 6000);
@@ -1039,15 +1063,11 @@ const SOURCES = [
     id:"okx", name:"OKX", quality:"備援",
     sym: s => ({PAXGUSDT:"PAXG-USDT", XAUTUSDT:"XAUT-USDT"})[s] || null,
     async klines(sym, interval, limit, onProgress){
-      // 日線用 1Dutc：以 UTC 00:00 切日，才跟 Binance 的日 K 對得上
-      const bar = ({"1m":"1m", "1d":"1Dutc"})[interval];
-      if(!bar) return [];
-      const step = interval === "1d" ? 86400000 : 60000;
+      if(interval !== "1m") return [];
       const out = []; let after = null, guard = 0;
-      const stopAt = Date.now() - limit*step;
+      const stopAt = Date.now() - limit*60000;
       while((after === null || after > stopAt) && guard++ < 400){
-        let url = `https://www.okx.com/api/v5/market/history-candles?instId=${sym}&bar=${bar}`
-                + `&limit=${interval === "1d" ? 100 : 300}`;
+        let url = `https://www.okx.com/api/v5/market/history-candles?instId=${sym}&bar=1m&limit=300`;
         if(after !== null) url += `&after=${after}`;
         const j = await jget(url);
         const raw = j && j.data;
@@ -1056,9 +1076,9 @@ const SOURCES = [
                          .sort((a,b) => a.t - b.t);
         out.unshift(...chunk);
         after = chunk[0].t;
-        if(onProgress) onProgress(Math.round((Date.now() - after)/step), limit);
+        if(onProgress) onProgress(Math.round((Date.now() - after)/60000), limit);
       }
-      return interval === "1m" ? densify(out) : out;
+      return densify(out);
     },
     async price(sym){
       const j = await jget(`https://www.okx.com/api/v5/market/ticker?instId=${sym}`, 6000);
@@ -1138,8 +1158,8 @@ function aggregate(bars1m, minutes){
   return out;
 }
 
-/* 合成週期（2 分、11 分）都由 1 分線聚合；兩邊都選合成週期時只抓一次最長的那份共用，
-   否則等於把最慢的那步做兩遍。原生週期（例如下方預設的日線）各自另抓。 */
+/* 11 分與 2 分都是由 1 分線聚合出來的，而 2 分需要的 1 分資料是 11 分那份的子集合。
+   所以只抓一次「最長的那個」，兩邊共用——否則等於把最慢的那步做兩遍。 */
 async function fetchAll(onProgress){
   const custom = PANELS.filter(p => !NATIVE_TF.has(p.tf));
   if(custom.length){
@@ -1178,7 +1198,6 @@ function readParams(p){
 /* ============ 卡片 ============ */
 function tfLabel(tf){
   const m = tf.match(/^(\d+)([mhd])$/);
-  if(tf === "1d") return "日線";
   return m ? m[1] + (m[2]==="h" ? " 小時" : m[2]==="d" ? " 日" : " 分") : tf;
 }
 
@@ -1217,7 +1236,7 @@ function renderSigBox(p){
     const chg = (last.c/sb.c - 1) * 100 * lastSig.dir;
     tone = lastSig.dir > 0 ? " long" : " short";
     big  = `<div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>`;
-    line1 = `<span class="sigmeta">${barTime(sb.t, p.tf)}</span>`
+    line1 = `<span class="sigmeta">${tsText(sb.t)}</span>`
           + `<span class="sigmeta">訊號後至今 `
           + `<span id="sigSince${k}" class="${chg>=0?"up":"down"}">${pct(chg)}</span></span>`;
   }
@@ -1351,7 +1370,7 @@ function renderSignals(p){
     const b = bars[r.i];
     const chg = (bars[n].c/b.c - 1) * 100 * r.dir;
     return `<tr>
-      <td data-l="時間">${barTime(b.t, p.tf)}</td>
+      <td data-l="時間">${tsText(b.t)}</td>
       <td data-l="方向"><span class="pill ${r.dir>0?"long":"short"}">${r.dir>0?"買進":"賣出"}</span></td>
       <td data-l="訊號價">${fmt(b.c)}</td>
       <td data-l="過濾線" style="color:var(--dim)">${fmt(R.filt[r.i])}</td>
@@ -1452,10 +1471,9 @@ function drawChart(p){
   }
   // 時間軸：窄螢幕改成只標日期，並依可用寬度決定標幾格，避免文字疊在一起
   ctx.textBaseline = "top";
-  const daily = p.tf === "1d";
   const dateOnly = cw < 640;
-  const labFn = daily ? dayText : dateOnly ? (t=>tsText(t).slice(0,5)) : tsText;
-  const labW  = daily ? 66 : dateOnly ? 52 : 96;
+  const labFn = dateOnly ? (t=>tsText(t).slice(0,5)) : tsText;
+  const labW  = dateOnly ? 52 : 96;
   const nLab  = Math.max(2, Math.min(7, Math.floor(cw / labW)));
   const step  = Math.max(1, Math.ceil(show / nLab));
   let lastRight = -1e9;                       // 量過寬度才畫，硬性保證不疊字
@@ -1594,7 +1612,7 @@ PANELS.forEach(p=>{
     const b = p.bars[i], R = p.R;
     tip.style.display = "block";
     tip.textContent =
-      `${barTime(b.t, p.tf)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
+      `${tsText(b.t)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
       `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n` +
       `量 ${fmt(b.v,1)}`;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -1786,7 +1804,7 @@ function checkAlarm(p){
   if(seen === key) return;
   try{ localStorage.setItem(slot, key); }catch(e){}
 
-  fireAlarm(sig.dir, bars[sig.i].c, barTime(bars[sig.i].t, p.tf), confirmed, tfLabel(p.tf));
+  fireAlarm(sig.dir, bars[sig.i].c, tsText(bars[sig.i].t), confirmed, tfLabel(p.tf));
 }
 
 $("errBox").addEventListener("click", ()=> showErr(null));
@@ -1958,6 +1976,60 @@ document.querySelectorAll(".tab").forEach(btn=>{
 document.querySelectorAll("[data-close]").forEach(el=> el.addEventListener("click", closeSheet));
 document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); });
 
+/* ============ 新聞跑馬燈 ============ */
+const NEWS_RSS = "https://news.google.com/rss/search?q=" +
+  encodeURIComponent("黃金 OR 金價 OR gold price") + "&hl=zh-TW&gl=TW&ceid=TW:zh-Hant";
+
+// 兩條路：rss2json 直接吐 JSON；不行就換 CORS 代理拿原始 RSS 自己解
+async function fetchNews(){
+  try{
+    const r = await fetch("https://api.rss2json.com/v1/api.json?rss_url=" + encodeURIComponent(NEWS_RSS),
+                          {cache:"no-store"});
+    const j = await r.json();
+    if(j.status === "ok" && j.items && j.items.length) return j.items.map(i=> i.title);
+  }catch(e){}
+  try{
+    const r = await fetch("https://api.cors.lol/?url=" + encodeURIComponent(NEWS_RSS), {cache:"no-store"});
+    const doc = new DOMParser().parseFromString(await r.text(), "text/xml");
+    const t = [...doc.querySelectorAll("item > title")].map(n=> n.textContent);
+    if(t.length) return t;
+  }catch(e){}
+  return null;
+}
+
+async function loadNews(){
+  const titles = await fetchNews();
+  const track = $("tickerTrack");
+  if(!titles){
+    track.className = "ticker-track";
+    track.innerHTML = `<span class="idle">新聞來源暫時取不到，稍後自動再試</span>`;
+    return;
+  }
+  // Google News 的標題結尾是「 - 媒體名」，拆開讓媒體名淡一點
+  const items = titles.slice(0, 12).map(t=>{
+    const k = t.lastIndexOf(" - ");
+    const head = k > 0 ? t.slice(0, k) : t;
+    const src  = k > 0 ? t.slice(k + 3) : "";
+    return `<span class="it"><b>${esc(head)}</b>${src ? ` <span class="src">${esc(src)}</span>` : ""}</span>`;
+  }).join("");
+
+  // 內容排兩份，動畫跑到 -50% 剛好接回開頭，看起來是無縫的
+  track.className = "ticker-track";
+  track.innerHTML = items + items;
+  requestAnimationFrame(()=>{
+    const w = track.scrollWidth / 2;                 // 一份的寬度
+    track.style.animationDuration = Math.max(28, Math.round(w / 38)) + "s";
+    track.classList.add("run");
+  });
+}
+
+// RSS 標題裡已經是被轉義過的實體，先還原再重新轉義，才不會出現 &amp;amp;
+const _dec = document.createElement("textarea");
+function esc(t){
+  _dec.innerHTML = String(t);
+  return _dec.value.replace(/[&<>"]/g, c=> ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+
 /* 事件綁定 */
 ["srcSel","perA","multA","perB","multB","cost","session"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(false));
@@ -1974,20 +2046,18 @@ document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); }
 });
 $("refresh").addEventListener("click", ()=> run(true));
 
-// 預設值（成本 0.115%／單趟）
-//   11 分 300/23：223 天驗證過的組合（V1.06 重掃 2537 組）。淨 +46.0% 複利、17 筆、回撤 6.4%。
-//     per 240~480 在 mult=23 上都是 +40~47%，位在高原正中央而非單點運氣。
-//   日線 25/8（V1.07 取代 2 分 120/30）：mult=8 這一欄在 PAXG 近 6 年（per 10~50 全部 +18~+77%）
-//     與 GC=F 20 年（per 10~50 全部 +117~+174%）上都是正的，是兩個樣本都站得住的高原；
-//     mult 1~6 則正負亂跳。這組仍跑輸一直抱著，且兩個樣本的空單都是負貢獻——說明面板有寫。
-//   2 分為何拿掉：它的參數只在 223 天這一段跌勢上驗證過。2026-09-11 用 6 年 PAXG 與
-//     2 年 GC=F 掃 1/2/4 小時與日線，及格的參數零星出現、換個資料源就不重現。
+// 預設值＝223 天、成本 0.115%／單趟 驗證過的組合（V1.06 重掃 2537 組後更新）
+//   11 分 300/23：淨 +46.0% 複利、17 筆、回撤 6.4%。per 240~480 在 mult=23 上都是 +40~47%，
+//     位在高原正中央而非單點運氣，所以維持不動。
+//   2 分 120/30：淨 +33.6% 複利、78 筆、回撤 14.7%。原本 60/30 的中段是虧的
+//     （三段 [+22.7,-5.9,+11.0]）且卡在高原邊緣；per 移到 110~150 才進平坦區，
+//     三段變成全正 [+22.9,+2.5,+8.1]，前後半獨立重跑也從 +9.6%/+19.1% 改善為 +20.1%/+16.4%。
 //   成本 0.115% = Binance VIP0 taker 0.10% + $1 萬單滑價 0.013%（實測簿深）。
 //     PAXG 不在零手續費促銷名單內。有付 BNB 抵手續費者改 0.09%。
-const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"1d",
-                  barsA:"20000", barsB:"2000", srcSel:"hl2",
+const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"2m",
+                  barsA:"20000", barsB:"110000", srcSel:"hl2",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
-                  perA:300, multA:23, perB:25, multB:8, cost:0.115, session:true};
+                  perA:300, multA:23, perB:120, multB:30, cost:0.115, session:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
                    || $("tfA").value   !== DEFAULTS.tfA
@@ -2084,6 +2154,8 @@ if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
 updateNotifHint();
+loadNews();
+setInterval(loadNews, 600000);   // 新聞 10 分鐘換一次
 </script>
 </body>
 </html>
