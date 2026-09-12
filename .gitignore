@@ -10,3 +10,7 @@ _samples_backup/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 研究用資料快取（可隨時重抓）
+research/data/
+research/__pycache__/
