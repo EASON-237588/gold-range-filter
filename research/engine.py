@@ -110,6 +110,47 @@ def buy_hold(bars, lo=0, hi=None):
             "trades": [], "curve": [v / seg[0] for v in seg]}
 
 
+def run_scaled(bars, sig, name="", lo=0, hi=None):
+    """逐日權益版，支援分數部位（0.5 這種）。
+
+    run() 用的是交易配對法，只能處理全額進出。要比較分級部位就得用這個。
+    成本按**部位變化量**計算（1.0→0.5 只扣一半），比 run() 的全額扣法公平。
+
+    數字會跟 run() 有微小差異（這裡用收盤到收盤、run() 用次根開盤成交），
+    所以要比較時請讓所有策略都走同一個函式，不要混用。
+    """
+    C = [b["c"] for b in bars]
+    T = [b["t"] for b in bars]
+    N = len(bars)
+    hi = N if hi is None else hi
+    lo = max(lo, 0)
+
+    eq, pos = 1.0, 0.0
+    peak, mdd = 1.0, 0.0
+    curve, switches = [], 0
+
+    for i in range(lo, min(hi, N) - 1):
+        want = sig[i] if sig[i] is not None else pos
+        want = float(want)
+        if want != pos:
+            eq *= (1 - abs(want - pos) * COST)
+            switches += 1
+            pos = want
+        eq *= (1 + pos * (C[i + 1] / C[i] - 1))
+        curve.append(eq)
+        if eq > peak:
+            peak = eq
+        dd = (peak - eq) / peak * 100
+        if dd > mdd:
+            mdd = dd
+
+    yrs = (T[min(hi, N) - 1] - T[lo]) / 864e5 / 365
+    return {"name": name, "ret": (eq - 1) * 100, "mdd": mdd, "n": switches,
+            "月頻": yrs * 12 / switches if switches else None,
+            "rr": ((eq - 1) * 100 / mdd) if mdd else 0,
+            "curve": curve, "pf": None, "勝率": None, "trades": []}
+
+
 # ---------------- 策略訊號 ----------------
 
 def sig_ma(bars, days, allow_short, monthly_check=True):
@@ -130,6 +171,40 @@ def sig_tsmom(bars, lb_months, allow_short, monthly_check=True):
     s = [None if i < LB else (1 if C[i] > C[i - LB] else (-1 if allow_short else 0))
          for i in range(len(C))]
     return monthly(s, T) if monthly_check else s
+
+
+def sig_dual_confirm(bars, lb_months=12, ma_days=200, mode="and"):
+    """雙確認防護：預設持有，只有動量與均線「同時」轉空才出場。
+
+    設計依據（2026-09-13 的驗證結論）：
+      * 買進持有是黃金最強的基準，所以預設狀態必須是持有，不是空手。
+      * 擇時唯一穩定成立的能力是大空頭保護，所以出場門檻要嚴。
+      * 大空頭時兩個條件必然同時成立；多頭段的假訊號很難兩個一起觸發。
+        這個非對稱性是白撿的，不需要額外參數去調。
+
+    刻意不引入任何新參數：12 個月動量與 200 日均線都是現成策略的標準設定。
+
+    mode="and"   兩個都轉空才出場（保守，保留多頭段）
+    mode="or"    任一轉空就出場（敏感，接近 Faber/TSMOM 的行為）
+    mode="scale" 分級部位：都看多 100%、一個看多 50%、都看空 0%
+    """
+    C = [b["c"] for b in bars]
+    T = [b["t"] for b in bars]
+    LB = int(lb_months * 21)
+    ma = sma(C, ma_days)
+    s = [None] * len(C)
+    for i in range(len(C)):
+        if i < LB or ma[i] is None:
+            continue
+        mom_ok = C[i] > C[i - LB]
+        ma_ok = C[i] > ma[i]
+        if mode == "and":
+            s[i] = 0 if (not mom_ok and not ma_ok) else 1
+        elif mode == "or":
+            s[i] = 1 if (mom_ok and ma_ok) else 0
+        else:
+            s[i] = 1.0 if (mom_ok and ma_ok) else (0.5 if (mom_ok or ma_ok) else 0.0)
+    return monthly(s, T)
 
 
 def sig_donchian(bars, n_in, n_out, allow_short):
