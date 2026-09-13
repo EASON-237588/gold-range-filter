@@ -1,0 +1,206 @@
+// 11 分・Donchian 兩態反轉・多空都做・逆勢分批加碼          v1.3.0  2026-09-13
+//
+// 這支是「黃金即時儀表板 V2.01」下方面板的 Pine 移植。原始策略在 PAXG/USDT
+// 六年資料上開發與驗證，移到 TradingView 時**數字一定會不一樣**，原因見最下面的說明。
+//
+// v1.3.0 預設值改為 TVC:GOLD 19.5 年（2007-03 ~ 2026-09）掃描出的最佳組合：
+//   回看 350 小時・1 段・停損 8 ATR・只做多
+//   → +41.96%／最大回撤 5.75%／156 筆／獲利因子 1.756／報酬÷回撤 7.30
+//   對照改版前的預設（800 時・3 段・停損 4・多空都做）：-14.95%／回撤 61.12%。
+//
+// 掃描過程與代價（每一項都是實測，不是推論）：
+//   回看   200:-0.43　250:0.36　300:2.01　**350:2.79**　400:1.54　600:0.97　800:0.80
+//          → 350 是窄峰不是高原，挪一格掉三到四成，這是已知的過擬合疑慮。
+//   段數   **1:6.89**　2:5.26　3:2.79　（獲利因子 1.798→1.499→1.377，單調遞減）
+//          → **分批加碼是純減分**。段數設 1 等於完全放棄逆勢攤平，這是實測結論
+//            而不是設計偏好；要保留分批就改成 2，代價是 6.89 掉到 5.26。
+//   停損   2:4.82　4:6.89　**8:7.30**　20:6.40　→ 8 是峰值，太緊太鬆都差。
+//   方向   只做多:+13.72%(當時800時)　多空都做:-14.95%　只做空:-39.37%
+//          → 空單在 19.5 年、含 2008 海嘯與 2011-15 大空頭的樣本上仍是負貢獻。
+//
+// 必須知道的參照：同期黃金買進持有約 +540%，這套策略只有它的十三分之一。
+// 它贏的是回撤（5.75% 對全抱動輒 40%+），不是報酬。這是保險，不是收益。
+//
+// v1.2.0 顯示改版：barcolor 只對 K 棒生效，圖表切成折線就完全看不到顏色。
+// 改成畫一條**隨部位變色的粗線**（做法跟 Gold Range Filter 一樣），
+// 折線圖、K 線圖、甚至面積圖都看得到。通道線預設關閉，畫面只留必要資訊。
+//
+// v1.1.0 修正：v1.0.0 只實作了「兩態反轉」，出場完全靠方向翻轉。把做空關掉之後
+// 方向永遠不會翻，於是第一次買進後再也不出場，整支變成買進持有
+// （TVC:GOLD 19.5 年實測：+540%、0 筆已平倉交易、獲利因子 0——那是浮動損益不是策略績效）。
+// 現在補上三態模式，與儀表板 V2.01 的行為一致。
+//
+// 三種方向模式的規則不一樣：
+//   只做多／只做空（三態）
+//     進場  突破前 N 根極值
+//     出場  跌破前 N/3 根低點（多單）／突破前 N/3 根高點（空單）→ 回到空手等下一次突破
+//     停損  以平均成本計，反向走 stop×ATR 全平
+//   多空都做（兩態反轉）
+//     訊號翻轉直接反手，永遠在場，不經過空手。此模式**硬停損自動停用**——
+//     停損必然產生空手期，與「永遠在場」互斥，風險控制改由反手承擔。
+//
+// 共同規則：進場後每逆行 step×ATR 加一段，最多 segs 段（逆勢攤平，不是順勢金字塔）。
+// 沒有停利，讓大波段抱住。
+//
+// 逆勢攤平不是隨便選的：六年、兩個週期、兩種方向訊號、十二個年份格子的測試裡，
+// 攤平的最大回撤與最慘單筆幾乎永遠比順勢金字塔小。
+
+//@version=5
+strategy("11分 Donchian 反轉 · 逆勢分批",
+     overlay              = true,
+     pyramiding           = 8,                       // 要大於 segs，否則加碼會被 Pine 擋掉
+     default_qty_type     = strategy.percent_of_equity,
+     default_qty_value    = 33.34,                   // 每段約 1/3，三段滿倉
+     commission_type      = strategy.commission.percent,
+     commission_value     = 0.115,                   // 單趟成本：taker 0.10% + 滑價 0.013%
+     initial_capital      = 10000,
+     process_orders_on_close = true,                 // 收盤價成交，與原始回測一致
+     calc_on_every_tick   = false)
+
+// ── 參數 ──────────────────────────────────────────────────────────────────
+// 回看用「小時」而不是「根數」：換週期時涵蓋的時間長度才不會跟著變。
+// 這是跨週期比較唯一站得住的做法，原始專案的所有掃描都用這個口徑。
+lookH   = input.int(350,  "回看（小時）", minval=1,
+     tooltip="11 分圖上 350 小時 = 1909 根。TVC:GOLD 19.5 年掃描的最佳值，但它是窄峰：300 是 2.01、350 是 2.79、400 掉到 1.54，挪一格就掉三到四成。可用區間大致 300~400。")
+segs    = input.int(1,    "最多幾段",     minval=1, maxval=8,
+     tooltip="設 1 = 不分批，一次進滿。19.5 年掃描：1 段 6.89、2 段 5.26、3 段 2.79，單調遞減——分批加碼在這個樣本上是純減分。設 1 時下面的『加碼間距』不會作用。")
+stepAtr = input.float(1.0,"加碼間距（ATR）", minval=0.1, step=0.1,
+     tooltip="每逆行這麼多個 ATR 加一段。段數設 1 時此參數無作用。")
+atrLen  = input.int(14,   "ATR 長度",     minval=1)
+mode    = input.string("只做多", "方向", options=["只做多", "只做空", "多空都做"],
+     tooltip="只做多／只做空是三態（會回到空手、有硬停損）；多空都做是兩態反轉（永遠在場、停損停用）。")
+stopAtr = input.float(8.0, "停損（ATR）", minval=0.5, step=0.5,
+     tooltip="以平均成本計，反向走這麼多個 ATR 全平。多空都做模式下不啟用。TVC:GOLD 19.5 年掃描：8 最佳（7.30），4 是 6.89、2 是 4.82、20 是 6.40。")
+showCh  = input.bool(false, "顯示通道線", tooltip="進場／出場通道。預設關閉，畫面比較乾淨。")
+lineW   = input.int(3, "狀態線粗細", minval=1, maxval=8)
+txtSize = input.string("大", "右上角字級", options=["小", "中", "大", "特大"])
+
+// ── 指標 ──────────────────────────────────────────────────────────────────
+// 每根 K 幾分鐘。用 timeframe.multiplier 而不是寫死 11，這樣換週期時回看長度會自動換算。
+// 寫成單行是必要的：Pine 對「不在括號內」的續行很挑，縮排若是 4 空格的倍數
+// 會被當成新的程式區塊，編譯報 'end of line without line continuation'。
+tfMin = timeframe.isminutes ? timeframe.multiplier : timeframe.isdaily ? timeframe.multiplier * 1440 : timeframe.isweekly ? timeframe.multiplier * 10080 : 60
+n = math.min(4999, math.max(2, math.round(lookH * 60 / tfMin)))
+
+// [1] 是關鍵：通道要用**前一根為止**的極值，含當根的話當根一定不會突破自己，訊號會消失
+exitN = math.max(10, math.round(n / 3))
+hh  = ta.highest(high, n)[1]
+ll  = ta.lowest(low,   n)[1]
+he  = ta.highest(high, exitN)[1]     // 空單的出場線
+le  = ta.lowest(low,   exitN)[1]     // 多單的出場線
+atr = ta.atr(atrLen)
+rev = mode == "多空都做"              // 兩態反轉
+
+// ── 方向：兩態反轉，不回空手 ────────────────────────────────────────────────
+var int dir = 0
+if not na(hh) and close > hh and mode != "只做空"
+    dir := 1
+else if not na(ll) and close < ll and mode != "只做多"
+    dir := -1
+else if not rev and dir == 1 and not na(le) and close < le
+    dir := 0
+else if not rev and dir == -1 and not na(he) and close > he
+    dir := 0
+
+// ── 部位狀態 ──────────────────────────────────────────────────────────────
+var int   side    = 0      // 目前方向：+1 多 / -1 空 / 0 空手
+var int   filled  = 0      // 已建立幾段
+var float lastAdd = na     // 上次建倉價，用來量「逆行了多少」
+
+flip = dir != 0 and dir != side
+
+// 硬停損（只在三態模式）。放在最前面，優先於一切。
+if not rev and side != 0 and not na(atr) and atr > 0 and strategy.position_size != 0
+    adverseStop = (strategy.position_avg_price - close) * side
+    if adverseStop >= stopAtr * atr
+        strategy.close_all(comment="停損")
+        side    := 0
+        filled  := 0
+        lastAdd := na
+        dir     := 0          // 停損後不許用同一個訊號當根重進，等訊號重新產生
+
+// 訊號回到空手（只在三態模式）
+if not rev and dir == 0 and side != 0
+    strategy.close_all(comment="出場")
+    side    := 0
+    filled  := 0
+    lastAdd := na
+
+if flip
+    // 反手：Pine 的 strategy.entry 下反向單時會自動平掉原部位
+    if dir > 0
+        strategy.entry("多", strategy.long)
+    else
+        strategy.entry("空", strategy.short)
+    side    := dir
+    filled  := 1
+    lastAdd := close
+// if 與 else if 之間不能有空行，Pine 會找不到對應的 if
+else if side != 0 and filled < segs and not na(atr) and atr > 0
+    // 逆勢加碼：價格往不利方向走了 stepAtr 個 ATR 就加一段
+    adverse = (lastAdd - close) * side
+    if adverse >= stepAtr * atr
+        if side > 0
+            strategy.entry("多加" + str.tostring(filled + 1), strategy.long)
+        else
+            strategy.entry("空加" + str.tostring(filled + 1), strategy.short)
+        filled  := filled + 1
+        lastAdd := close
+
+// ── 畫面 ──────────────────────────────────────────────────────────────────
+// 顏色照儀表板的定義：紅＝做多、綠＝做空、灰＝空手。這裡畫的是**部位狀態**不是漲跌。
+posCol = side > 0 ? color.new(#ff3b3b, 0) : side < 0 ? color.new(#4cff00, 0) : color.new(#7a8494, 0)
+barcolor(posCol)
+
+plot(showCh ? hh : na, "進場線（上）", color=color.new(#58a6ff, 40), linewidth=1)
+plot(showCh ? ll : na, "進場線（下）", color=color.new(#ff7878, 55), linewidth=1)
+plot(showCh and side != 0 ? strategy.position_avg_price : na, "平均成本",
+     color=color.new(color.white, 30), style=plot.style_linebr, linewidth=1)
+
+// 狀態線：這是主要的視覺訊號。跟 barcolor 不同，它是一條真的線，
+// 折線圖也看得到——barcolor 只有 K 棒才吃得到顏色，圖表一切成折線就整片灰。
+plot(close, "部位狀態", color=posCol, linewidth=lineW)
+
+plotshape(flip and dir > 0, "翻多", shape.triangleup,   location.belowbar,
+     color=color.new(#ff3b3b, 0), size=size.tiny)
+plotshape(flip and dir < 0, "翻空", shape.triangledown, location.abovebar,
+     color=color.new(#4cff00, 0), size=size.tiny)
+
+// 目前狀態一覽
+tsz = txtSize == "小" ? size.small : txtSize == "中" ? size.normal : txtSize == "大" ? size.large : size.huge
+var table tb = table.new(position.top_right, 2, 4, border_width=1, bgcolor=color.new(color.black, 20))
+if barstate.islast
+    table.cell(tb, 0, 0, "回看",   text_color=color.gray, text_size=tsz)
+    table.cell(tb, 1, 0, str.tostring(n) + " 根 / " + str.tostring(lookH) + " 時",
+         text_color=color.white, text_size=tsz)
+    table.cell(tb, 0, 1, "方向",   text_color=color.gray, text_size=tsz)
+    table.cell(tb, 1, 1, side > 0 ? "做多" : side < 0 ? "做空" : "空手",
+         text_color = side > 0 ? #ff3b3b : side < 0 ? #4cff00 : color.gray, text_size=tsz)
+    table.cell(tb, 0, 2, "段數",   text_color=color.gray, text_size=tsz)
+    table.cell(tb, 1, 2, str.tostring(filled) + " / " + str.tostring(segs),
+         text_color=color.white, text_size=tsz)
+    table.cell(tb, 0, 3, "均價",   text_color=color.gray, text_size=tsz)
+    table.cell(tb, 1, 3, side != 0 ? str.tostring(strategy.position_avg_price, "#.##") : "—",
+         text_color=color.white, text_size=tsz)
+
+// ── 移到 TradingView 之後，數字為什麼會跟儀表板不一樣 ────────────────────────
+//
+// 1. 商品不同。原始回測用 Binance 的 PAXG/USDT（24 小時交易、實體黃金代幣）。
+//    TradingView 上的 XAUUSD 或 OANDA:XAUUSD 有週末休市，跳空的形狀完全不同，
+//    Donchian 的極值與 ATR 都會跟著變。要最接近就選 24 小時交易的黃金商品。
+//
+// 2. 歷史深度。回看 4364 根意味著**前 4364 根不會有任何訊號**（11 分約 33 天）。
+//    TradingView 各方案能載入的歷史根數不同，圖表不夠長就只會看到很少幾筆交易。
+//    這也是原始儀表板遇到的同一個問題：11 分只載得動 152 天，六年只跑出 1 筆。
+//
+// 3. 成交價假設。這裡設 process_orders_on_close=true，訊號當根收盤成交，
+//    跟原始回測一致。TradingView 預設是下一根開盤，不改的話會有系統性差異。
+//
+// 4. 成本。0.115% 是 Binance VIP0 taker 加實測滑價。你的券商不同就要改，
+//    而且這個策略對成本不算敏感（交易少），但如果你把回看調短、交易變密，
+//    成本假設就會變成決定生死的變數。
+//
+// 最後一件事，是原始專案六年測試最一致的結論：**做空在黃金上沒有一次是正貢獻**。
+// 七個商品（跌幅 29%~95%）、四個熊市段、160 組不對稱空單設計、EURUSD 15 組，全部負的。
+// 這支預設允許做空是因為你指定要「多空都做」；把「允許做空」關掉會變成只做多版本，
+// 那個版本在 4 小時上的六年成績是 +50.2%／回撤 6.4%（報酬÷回撤 7.90，買進持有是 4.14）。

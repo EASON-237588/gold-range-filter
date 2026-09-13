@@ -69,12 +69,6 @@
   .chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--dim);cursor:pointer;user-select:none}
   .chk input{accent-color:var(--accent);cursor:pointer}
   .sep{width:1px;height:22px;background:var(--line)}
-  /* 參數分組標題：佔滿整行，讓兩套策略的參數在視覺上分開 */
-  .grp{
-    flex-basis:100%;font-size:11px;font-weight:600;letter-spacing:.8px;
-    color:var(--accent);margin:6px 0 -2px;display:flex;align-items:center;gap:8px;
-  }
-  .grp::after{content:"";flex:1;height:1px;background:var(--line)}
 
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:11px;flex:none}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
@@ -340,7 +334,7 @@
 
 <header>
   <h1><span class="g">◆</span> 黃金即時儀表板 <span class="ver" id="verTitle"></span></h1>
-
+  <span class="srcinfo"><span class="status-dot" id="dot"></span><span id="srcTxt">初始化中…</span></span>
 </header>
 
 <div class="err" id="errBox"></div>
@@ -351,7 +345,7 @@
 <section class="strat">
   <div class="sigrow" id="sigA">
     <div class="sigcap dir">
-      <div class="sigline"><span class="tf">4 小時</span></div>
+      <div class="sigline"><span class="tf">11 分</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -376,7 +370,7 @@
 <section class="strat">
   <div class="sigrow" id="sigB">
     <div class="sigcap dir">
-      <div class="sigline"><span class="tf">11 分</span></div>
+      <div class="sigline"><span class="tf">15 分</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -398,11 +392,36 @@
   </div>
 </section>
 
+<section class="strat">
+  <div class="sigrow" id="sigC">
+    <div class="sigcap dir">
+      <div class="sigline"><span class="tf">日線</span></div>
+      <div class="v mid">—</div>
+    </div>
+    <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
+    <div class="sigcap ret">
+      <div class="sigline"><span class="k">淨報酬</span></div>
+      <div class="v mid">—</div>
+    </div>
+  </div>
+  <div class="chartcard">
+    <div class="chartbox" id="chartBoxC">
+      <canvas id="cvC"></canvas><canvas class="lv" id="lvC"></canvas>
+      <div class="tip" id="tipC"></div>
+      <div class="zoombar">
+        <button data-p="C" data-z="in" title="放大">＋</button>
+        <button data-p="C" data-z="out" title="縮小">－</button>
+        <button data-p="C" data-z="reset" title="還原全圖">⤢</button>
+      </div>
+    </div>
+  </div>
+</section>
+
 <nav class="tabbar">
   <button class="tab" data-sheet="shParams">參數設定</button>
   <button class="tab" data-sheet="shSignals">訊號歷史</button>
   <button class="tab" data-sheet="shStats">績效統計</button>
-  <button class="tab" data-sheet="shNotes">策略說明</button>
+  <button class="tab" data-sheet="shNotes">四個問題</button>
   <button class="tab" data-sheet="shHelp">說明</button>
 </nav>
 
@@ -432,105 +451,106 @@
       <option value="XAUTUSDT">XAUT/USDT（Tether Gold・有量）</option>
     </select>
   </label>
-  <div class="grp"><span id="grpA">4 小時</span></div>
-
-  <label>週期
+  <label>上方週期
     <select id="tfA">
-      <option value="1h">1 小時</option>
-      <option value="2h">2 小時</option>
-      <option value="4h" selected>4 小時</option>
-      <option value="6h">6 小時</option>
-      <option value="12h">12 小時</option>
-      <option value="1d">日線</option>
-    </select>
-  </label>
-  <label title="Donchian：突破前 N 根極值進場。Range Filter：平滑波動通道，TVC:GOLD 19.5 年實測 200/23 是 +608%／回撤 24.8%（報÷撤 24.6），比 Donchian 的 7.30 好，但回撤大四倍。">訊號
-    <select id="sigAType">
-      <option value="donchian" selected>Donchian</option>
-      <option value="rf">Range Filter</option>
-    </select>
-  </label>
-  <label title="Range Filter 的取樣週期。19.5 年掃描：80→10.0、150→16.9、200→24.6、250→21.1、300→12.4。150~250 是平緩區。">RF 取樣週期
-    <input type="number" id="perA" value="200" min="2" step="10"></label>
-  <label title="Range Filter 的範圍乘數。19.5 年掃描：15→5.5（1660 筆）、23→24.6（774 筆）、30→7.2（490 筆）。23 是峰值。">RF 範圍乘數
-    <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
-  <label title="做空在五個市場、五種方法的測試裡沒有一次是正貢獻（七個加密商品、四個熊市段、160 組不對稱設計、EURUSD 15 組）。留這個選項是讓你自己驗證，預設只做多。">方向
-    <select id="modeA">
-      <option value="long" selected>只做多</option>
-      <option value="short">只做空</option>
-      <option value="both">多空都做</option>
-    </select>
-  </label>
-  <label title="回看長度用「小時」指定，換週期時涵蓋的時間長度才不會跟著變。1200 小時 = 50 天">回看小時
-    <input type="number" id="lookA" value="1200" min="24" step="100"></label>
-  <label title="最多分幾段建倉。掃描顯示 2~3 段最好，段數越多越差">段數
-    <input type="number" id="segsA" value="3" min="1" max="8" step="1"></label>
-  <label title="每逆行幾個 ATR 加一段">加碼間距(ATR)
-    <input type="number" id="stepA" value="1.5" min="0.1" step="0.1"></label>
-  <label title="以平均成本計，反向走幾個 ATR 全平">停損(ATR)
-    <input type="number" id="stopA" value="3" min="0.5" step="0.5"></label>
-  <label title="這套策略拿幾根 K 線做指標與回測">根數
-    <select id="barsA">
-      <option value="3000">3,000</option>
-      <option value="5000">5,000</option>
-      <option value="10000">10,000</option>
-      <option value="15000" selected>15,000（全部六年）</option>
-    </select>
-  </label>
-  <label title="畫面預設畫最近幾根">顯示根數
-    <input type="number" id="viewA" value="600" min="40" step="50"></label>
-  <div class="grp"><span id="grpB">11 分</span></div>
-
-  <label>週期
-    <select id="tfB">
+      <option value="1m">1 分</option>
+      <option value="2m">2 分 ✦</option>
+      <option value="3m">3 分</option>
       <option value="5m">5 分</option>
       <option value="11m" selected>11 分 ✦</option>
       <option value="15m">15 分</option>
       <option value="30m">30 分</option>
+      <option value="1h">1 小時</option>
+      <option value="2h">2 小時</option>
+      <option value="4h">4 小時</option>
+      <option value="1d">日線</option>
     </select>
   </label>
-  <label title="Donchian：突破前 N 根極值進場。Range Filter：平滑波動通道，TVC:GOLD 19.5 年實測 200/23 是 +608%／回撤 24.8%（報÷撤 24.6），比 Donchian 的 7.30 好，但回撤大四倍。">訊號
-    <select id="sigBType">
-      <option value="donchian">Donchian</option>
-      <option value="rf" selected>Range Filter</option>
+  <label>下方週期
+    <select id="tfB">
+      <option value="1m">1 分</option>
+      <option value="2m">2 分 ✦</option>
+      <option value="3m">3 分</option>
+      <option value="5m">5 分</option>
+      <option value="11m">11 分 ✦</option>
+      <option value="15m" selected>15 分</option>
+      <option value="30m">30 分</option>
+      <option value="1h">1 小時</option>
+      <option value="2h">2 小時</option>
+      <option value="4h">4 小時</option>
+      <option value="1d">日線</option>
     </select>
   </label>
-  <label title="Range Filter 的取樣週期。19.5 年掃描：80→10.0、150→16.9、200→24.6、250→21.1、300→12.4。150~250 是平緩區。">RF 取樣週期
-    <input type="number" id="perB" value="200" min="2" step="10"></label>
-  <label title="Range Filter 的範圍乘數。19.5 年掃描：15→5.5（1660 筆）、23→24.6（774 筆）、30→7.2（490 筆）。23 是峰值。">RF 範圍乘數
-    <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
-  <label title="下方預設多空都做（使用者指定）。注意：做空在五個市場、五種方法的測試裡沒有一次是正貢獻——七個加密商品、四個熊市段、160 組不對稱設計、EURUSD 15 組。上方 4 小時維持只做多。">方向
-    <select id="modeB">
-      <option value="long">只做多</option>
-      <option value="short">只做空</option>
-      <option value="both" selected>多空都做</option>
+  <label title="這套策略拿幾根 K 線做指標與回測。週期越短要越多根才涵蓋同樣天數">上方根數
+    <select id="barsA">
+      <option value="500">500</option>
+      <option value="1000">1,000</option>
+      <option value="2000">2,000</option>
+      <option value="3000">3,000</option>
+      <option value="5000">5,000</option>
+      <option value="10000">10,000</option>
+      <option value="15000">15,000</option>
+      <option value="20000" selected>20,000</option>
+      <option value="30000">30,000</option>
+      <option value="50000">50,000</option>
+      <option value="80000">80,000</option>
+      <option value="110000">110,000</option>
+      <option value="140000">140,000</option>
     </select>
   </label>
-  <label title="800 小時 = 33 天">回看小時
-    <input type="number" id="lookB" value="800" min="24" step="100"></label>
-  <label>段數
-    <input type="number" id="segsB" value="3" min="1" max="8" step="1"></label>
-  <label>加碼間距(ATR)
-    <input type="number" id="stepB" value="1.0" min="0.1" step="0.1"></label>
-  <label>停損(ATR)
-    <input type="number" id="stopB" value="4" min="0.5" step="0.5"></label>
-  <label title="11 分是合成週期，要用 1 分 K 聚合。20,000 根約 152 天，已需下載 22 萬根 1 分 K">根數
+  <label title="這套策略拿幾根 K 線做指標與回測。週期越短要越多根才涵蓋同樣天數">下方根數
     <select id="barsB">
-      <option value="10000">10,000（約 76 天）</option>
-      <option value="20000" selected>20,000（約 152 天）</option>
-      <option value="30000">30,000（約 229 天）</option>
-      <option value="50000">50,000（約 382 天・慢）</option>
+      <option value="500">500</option>
+      <option value="1000">1,000</option>
+      <option value="2000">2,000</option>
+      <option value="3000">3,000</option>
+      <option value="5000">5,000</option>
+      <option value="10000">10,000</option>
+      <option value="15000">15,000</option>
+      <option value="20000">20,000</option>
+      <option value="30000">30,000</option>
+      <option value="50000" selected>50,000</option>
+      <option value="80000">80,000</option>
+      <option value="110000">110,000</option>
+      <option value="140000">140,000</option>
     </select>
   </label>
-  <label title="畫面預設畫最近幾根。11 分要 12,000 根才涵蓋約 92 天，跟上面 4 小時的 600 根（100 天）是同一個時間尺度">顯示根數
-    <input type="number" id="viewB" value="12000" min="40" step="500"></label>
   <div class="sep"></div>
-
+  <label>源
+    <select id="srcSel">
+      <option value="hl2" selected>(H+L)/2</option>
+      <option value="close">收盤價</option>
+      <option value="hlc3">(H+L+C)/3</option>
+    </select>
+  </label>
+  <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">上方顯示根數
+    <input type="number" id="viewA" value="600" min="40" step="50"></label>
+  <label>上方取樣週期 <input type="number" id="perA" value="300" min="1"></label>
+  <label>上方範圍乘數 <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
+  <label class="chk" title="空方訊號只用來平多，不建立空單。十年日線與 2.4 年小時線兩個樣本的空單都是負貢獻，且讓最大回撤翻倍（4.6%→10.1%）；15 分 100/23 的年化÷回撤 0.65→0.75"><input type="checkbox" id="longOnlyA"> 上方只做多</label>
+  <div class="sep"></div>
+  <label title="這套策略的圖預設畫最近幾根；統計仍用全部根數">下方顯示根數
+    <input type="number" id="viewB" value="900" min="40" step="50"></label>
+  <label>下方取樣週期 <input type="number" id="perB" value="100" min="1"></label>
+  <label>下方範圍乘數 <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
+  <label class="chk" title="空方訊號只用來平多，不建立空單。十年日線與 2.4 年小時線兩個樣本的空單都是負貢獻，且讓最大回撤翻倍（4.6%→10.1%）；15 分 100/23 的年化÷回撤 0.65→0.75"><input type="checkbox" id="longOnlyB" checked> 下方只做多</label>
+  <div class="sep"></div>
+  <label title="第三策略固定走日線，時間尺度不可調（1/3/6/12 個月動量與 252 日新高密度）">第三策略根數
+    <select id="barsC">
+      <option value="1000">1,000</option>
+      <option value="2000" selected>2,000</option>
+      <option value="3000">3,000</option>
+      <option value="5000">5,000</option>
+    </select>
+  </label>
+  <label title="這套策略的圖預設畫最近幾根">第三顯示根數
+    <input type="number" id="viewC" value="500" min="40" step="50"></label>
+  <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
     <input type="number" id="cost" value="0.115" step="0.01" min="0"></label>
   <div class="sep"></div>
-  <label class="chk" title="剔除黃金休市時段的K線。V2 預設關閉：策略的參數與驗證全都在未過濾的完整資料上做，打開會砍掉約 29% 的 K 線、讓通道變形，畫面績效就不再等於回測結果">
-    <input type="checkbox" id="session"> 黃金交易時段</label>
+  <label class="chk" title="剔除黃金休市時段的K線，讓週末跳空真實出現，與 TVC:GOLD／XAUUSD 對齊">
+    <input type="checkbox" id="session" checked> 黃金交易時段</label>
   <div class="sep"></div>
   <label class="chk" title="只打一支報價 API，不重算指標、不重畫圖"><input type="checkbox" id="live" checked> 現價每秒更新</label>
   <label title="只補最後幾根 K 線，指標與統計在本機重算，不重抓歷史">自動重算
@@ -549,6 +569,7 @@
   <div class="hint" id="notifHint"></div>
   <button class="primary" id="refresh">立即更新</button>
   <button id="preset">預設值</button>
+  <button id="orig">回到你的參數</button>
   </div>
   
     </div>
@@ -561,17 +582,23 @@
     <div class="sheet-h"><h3>訊號歷史</h3><span class="tag" id="sigTag">—</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
-      <h4 class="stratHd" id="sigHdA">4 小時</h4>
+      <h4 class="stratHd" id="sigHdA">上方策略</h4>
       <div class="tblwrap">
         <table><thead><tr>
-          <th>時間</th><th>動作</th><th>價格</th><th>平均成本</th><th>部位</th><th>後續變動</th>
+          <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
         </tr></thead><tbody id="sigBodyA"></tbody></table>
       </div>
-      <h4 class="stratHd" id="sigHdB">11 分</h4>
+      <h4 class="stratHd" id="sigHdB">下方策略</h4>
       <div class="tblwrap">
         <table><thead><tr>
-          <th>時間</th><th>動作</th><th>價格</th><th>平均成本</th><th>部位</th><th>後續變動</th>
+          <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
         </tr></thead><tbody id="sigBodyB"></tbody></table>
+      </div>
+      <h4 class="stratHd" id="sigHdC">第三策略</h4>
+      <div class="tblwrap">
+        <table><thead><tr>
+          <th>時間</th><th>方向</th><th>訊號價</th><th>目標部位</th><th>後續變動</th>
+        </tr></thead><tbody id="sigBodyC"></tbody></table>
       </div>
     </div>
   </div>
@@ -583,17 +610,23 @@
     <div class="sheet-h"><h3>訊號績效統計</h3><span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
-      <h4 class="stratHd" id="statHdA">4 小時</h4>
+      <h4 class="stratHd" id="statHdA">上方策略</h4>
       <div class="stats" id="statsA"></div>
       <div style="margin-top:12px">
         <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
         <div class="eqbox"><canvas id="eqA"></canvas></div>
       </div>
-      <h4 class="stratHd" id="statHdB">11 分</h4>
+      <h4 class="stratHd" id="statHdB">下方策略</h4>
       <div class="stats" id="statsB"></div>
       <div style="margin-top:12px">
         <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
         <div class="eqbox"><canvas id="eqB"></canvas></div>
+      </div>
+      <h4 class="stratHd" id="statHdC">第三策略</h4>
+      <div class="stats" id="statsC"></div>
+      <div style="margin-top:12px">
+        <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（逐根複利、部位連續，回撤含持倉浮動虧損）</span></div>
+        <div class="eqbox"><canvas id="eqC"></canvas></div>
       </div>
     </div>
   </div>
@@ -602,68 +635,39 @@
 <div class="sheet" id="shNotes">
   <div class="sheet-bg" data-close></div>
   <div class="sheet-box">
-    <div class="sheet-h"><h3>策略說明</h3><span class="tag">只做多・逆勢累積・不做空</span>
+    <div class="sheet-h"><h3>原始策略的四個問題</h3><span class="tag">本儀表板已對應處理・暖機區訊號自動剔除</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
   <div class="notes">
+    <div class="warn"><b>1. ATR 過濾在原始碼裡完全沒作用。</b>
+      原碼是 <code>atr_lower = close - atr*mult</code>，然後判斷 <code>close &gt; atr_lower</code>。
+      因為 ATR 恆為正，這個條件<b>永遠成立</b>；空方的 <code>close &lt; atr_upper</code> 同理。
+      也就是說「使用ATR過濾」這個開關勾或不勾，訊號一模一樣。
+      本頁已直接移除這個無效開關。</div>
 
-    <p><b>V2 跟 V1 是完全不同的策略。</b>V1 用的是 Range Filter：通道突破、全額進出、會做空。
-      V2 全部換掉，因為 2026-09-13 那輪測試（十種策略結構 × 八個市場 × 七個週期）得到三個結論：
-      做空在每一個市場都是負貢獻、全額進出的回撤遠高於分批、Range Filter 長期跑輸買進持有。</p>
+    <div class="warn"><b>2. 移動止損在你目前的設定下不會執行。</b>
+      你把「使用止損/止盈」關掉了，但原碼把整段 <code>strategy.exit(...)</code> 包在 <code>if use_sl_tp</code> 裡面，
+      移動止損是 <code>strategy.exit</code> 的一個參數。所以「使用移動止損 ✓ / 偏移 0.8%」目前是空設定，
+      進場後只能等反向訊號才出場。<b>本頁依你的要求已完全移除停損／停利／移動止損</b>，
+      統計即為「純訊號進出」的原貌——這也正好等於你 TradingView 目前設定的實際行為。<br>
+      （實測補充：止損 2.1% / 止盈 2.5% 在 15 分黃金上 29 筆交易一次都沒觸發過，
+      單筆持倉根本走不到 2%，所以就算修好那個 bug，這組數字在短週期上仍等於沒設。）</div>
 
-    <div class="warn"><b>規則只有三條。</b><br>
-      <b>進場</b>：收盤價突破近 N 根高點（N 由「回看小時」換算），建立第一段。<br>
-      <b>加碼</b>：進場後每逆行 <code>step × ATR</code> 加一段，最多到設定的段數。
-      這是<b>逆勢</b>攤平，不是順勢金字塔——六年、兩個週期、兩種訊號、十二個年份格子的測試裡，
-      攤平的回撤與最慘單筆幾乎永遠比金字塔小。<br>
-      <b>出場</b>：跌破近 N/3 根低點（圖上的黃色虛線），或以平均成本計反向走
-      <code>stop × ATR</code> 觸及硬停損。<b>不主動停利</b>，讓大波段抱住。</div>
+    <div class="warn"><b>3. 交易量過濾在 TVC:GOLD 上會吃掉訊號。</b>
+      <code>TVC:GOLD</code> 是現貨報價指數，多數 K 線沒有成交量（0 或 na），
+      <code>volume &gt; volume_ma*0.8</code> 在 0 &gt; 0 時恆為 false。
+      實測後發現它不會刪除訊號、只會延後訊號，且開啟後勝率由 56.3% 掉到 50.0%，因此本頁已移除。</div>
 
-    <div class="warn"><b>三種方向模式的行為不一樣。</b><br>
-      <b>只做多／只做空</b>：三態。進場門檻嚴（突破回看區間的極值），出場門檻鬆
-      （跌破回看的三分之一），出場後回到空手等下一次突破。所以圖上會有大片灰色。<br>
-      <b>多空都做</b>：<b>反轉系統</b>，拿掉回到空手那條規則，訊號翻轉直接反手，永遠在場。
-      這個模式下<b>硬停損自動停用</b>——停損一定會產生空手期，跟「只有多或空」互斥，
-      風險控制改由反手承擔。</div>
+    <div class="warn"><b>4. 範圍乘數 23 讓訊號極度稀少。</b>
+      乘數 23 本身沒問題——三輪掃描的最佳乘數都落在 19~24。真正的問題是取樣週期 100 太短，
+      改成 300 後平均波幅由 2.86% 升到 4.04%、勝率由 45.0% 升到 56.3%。</div>
 
-    <div class="warn"><b>預設只做多。</b>跌破低點的空方訊號只用來平多，不建立空單。
-      這不是偏好問題，是五個市場、五種方法測出來的：七個加密商品（跌幅 29%~95%）全部負貢獻、
-      四個熊市段（BTC 一年跌七成，做空只賺 0.1%）、160 組不對稱空單設計沒有一組轉正、
-      EURUSD 15 個組合也全負。最乾淨的一次對照是 4 小時同參數：
-      關掉空單，報酬從 +32.1% 升到 +34.9%、回撤從 5.9% 降到 5.6%。</div>
-
-    <p><b>部位是連續的。</b>V1 只有滿倉與空手兩種狀態，V2 可以在 0% 到 100% 之間分段建倉。
-      目前投入多少，看訊號框的「持倉 xx%」與績效統計的「目前部位」。</p>
-
-    <div class="warn"><b>這是保險，不是收益。</b>4 小時六年 +50.2%、回撤 6.4%；
-      同期買進持有 +120.0%、回撤 29.0%。<b>報酬只有全抱的四成二，回撤只有全抱的兩成二。</b>
-      風險調整後（報酬÷回撤 7.90 對 4.14）它是贏的，但如果你的目標是賺最多，
-      六年測下來的答案一直是買進持有。要不要用擇時，取決於你對回撤的忍受度，回測答不了。</div>
-
-    <p><b>參數怎麼來的。</b>掃 450 組（回看 × 段數 × step × stop），先篩掉筆數&lt;10、
-      最大單筆佔獲利&gt;60%、最長連虧&gt;8，再用報酬÷回撤排序——用報酬排序會選到單純曝險大的組合。
-      4 小時的冠軍：回看 1200 小時／3 段／step 1.5／stop 3。六年沒有一年虧損，
-      成本從 0.05% 拉到 0.5% 仍有 7.13，集中度 24%。</p>
-
-    <div class="warn"><b>已知的三個弱點，先講清楚。</b><br>
-      <b>回看那一軸是窄峰</b>：1200 小時是 7.90，但 800 小時掉到 4.11、1600 小時掉到 4.18，
-      兩側腰斬。這是最明顯的過擬合警訊。<br>
-      <b>六年只有 14 筆</b>，樣本撐不起太強的結論。<br>
-      <b>PAXG 沒有大空頭</b>（2020 年後才有資料），這套策略在真正跌勢裡的表現無法驗證。</div>
-
-    <div class="warn"><b>11 分面板的歷史深度受限。</b>11 分不是原生週期，要用 1 分 K 合成，
-      而 20,000 根 11 分就需要下載 22 萬根 1 分 K。要拿到六年得下載 317 萬根，
-      儀表板做不到。所以<b>下方面板顯示的績效樣本很短、統計上沒有意義</b>
-      （筆數少於 5 筆時會標示「樣本不足」）。它的用途是看即時訊號；
-      11 分的完整六年回測結果是 +35.0%／回撤 11.1%（報÷撤 3.15、28 筆），
-      明顯不如 4 小時，放在這裡是為了對照。</div>
-
-    <p><b>時段過濾預設關閉。</b>參數設定裡的「黃金交易時段」在 V2 預設不勾。
-      策略的參數與驗證全都在未過濾的完整資料上做，打開會砍掉約 29% 的 K 線、讓通道變形，
-      畫面上的績效就不再等於回測結果（實測會從 7.90 掉到 2.22）。</p>
-
+    <p style="margin-top:11px;color:var(--dim2)">
+      另註：TradingView 屬性頁的「預設訂單大小 1000 數量」搭配 1 萬本金，代表約 440 萬美元的部位，
+      必須靠 Infinity 槓桿才跑得動，該回測的絕對損益數字不具參考性。本頁統計一律用「每筆固定名目金額」計算報酬率，避開這個失真。
+    </p>
   </div>
-
+  
     </div>
   </div>
 </div>
@@ -676,15 +680,34 @@
     <div class="sheet-b">
       <div class="notes">
         <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。最上面是現價，
-          下面兩張圖是兩套策略（上方 4 小時、下方 11 分），最底下五個鈕點開才是細節。<br>
-          <b>K 棒顏色代表部位狀態，不是漲跌</b>：紅＝做多、綠＝做空、灰＝空手。
-          K 棒夠寬時，實心是當根收漲、空心是收跌；擠太密時只畫影線。</p>
+          下面三張圖是三套策略（上方 11 分、中間 15 分、最下面日線），最底下五個鈕點開才是細節。</p>
+
+        <div class="warn"><b>第三張圖（日線）跟上面兩套是不同種東西。</b><br>
+          上面兩套是 Range Filter：看通道突破，全額進出，會做空。
+          第三套是<b>廣度 × 密度</b>：不看突破，看「跌勢有多廣、持續多久」——
+          動量廣度是 1/3/6/12 個月動量有幾個為正，新高密度是過去一年有多少比例的日子
+          收在年度高點 95% 以上，兩者相乘當作部位比例。<br>
+          三個關鍵差別：<b>(1) 部位是連續的</b>，0% 到 100% 分級減碼，不是全有全無，
+          所以底下那條部位帶顏色越深代表倉位越重。<b>(2) 只做多</b>，指標轉弱是減碼到空手，
+          不會反手做空。<b>(3) 月頻</b>，只有每月最後一個交易日才會改變部位，
+          改成每日檢查會被均線附近的來回穿越巴到完全變樣。<br>
+          <b>沒有參數可調</b>，時間尺度是策略規格的一部分，開放調整就只是換個方式過擬合。</div>
+
+        <div class="warn"><b>但它不是拿來賺更多的。</b>PAXG 日線這段樣本（暖機後約 4.1 年）：
+          策略 +40.0%／回撤 9.3%，買進持有 +143.9%／回撤 28.1%——
+          <b>報酬只有全抱的三成，回撤也只有三分之一</b>，風險調整後（報酬÷回撤 4.29 對 5.13）
+          其實還小輸。這跟先前用 GC=F 26 年、GLD 21.8 年做過的七種策略測試結論一致：
+          擇時在黃金上唯一穩定成立的能力是<b>降低回撤</b>，報酬是拿來換的，沒有免費午餐。<br>
+          而且這段 PAXG 樣本裡<b>沒有任何一次大空頭</b>（2020 年後才有資料），
+          所以它真正的價值——2011-2015 那種 -43.8% 跌勢裡的保護力——在這個面板上是驗證不到的。
+          請把它當<b>風險狀態指示</b>看：部位帶轉灰代表這套指標認為趨勢結構在轉弱，
+          不是叫你照它的報酬率去配置。</div>
 
         <div class="warn"><b>更新分三層，成本差很多。</b><br>
           <b>1. 現價每 1 秒</b>——一支報價 API，只改現價、代幣溢價、訊號後至今、持倉浮動這幾個數字，
           <b>不碰指標也不重畫圖</b>。現價旁邊紅點在閃就是正在跑。<br>
           <b>2. 自動重算，預設每 1 分</b>——只抓最後幾根 K 線補進記憶體（一個請求、幾 KB），
-          然後<b>在本機重算</b>通道、部位、統計並重畫圖。整段兩萬根重算只要幾十毫秒，
+          然後<b>在本機重算</b> Range Filter、訊號、統計並重畫圖。整段兩萬根重算只要幾十毫秒，
           所以一分鐘一次完全不吃力（一小時約 0.4MB）。訊號會不會變，看的是這一層。<br>
           <b>3. 完整重抓要手動</b>——按「立即更新」或改任何參數。20,000 根 11 分 K 要打約 330 個請求、
           解壓後約 50MB，所以永遠不自動做。</div>
@@ -712,12 +735,13 @@
         <div class="warn"><b>訊號會盤中反覆。</b>最後一根 K 線還沒收盤，
           所以訊號有可能盤中出現、收盤前又縮回去。要確認，看訊號歷史裡那筆的時間是不是已經過了一根 K 的長度。</div>
 
-        <div class="warn"><b>兩套策略的分工。</b>
-          上方 4 小時是主力：六年 14 筆、持倉 61.8 天、報酬÷回撤 7.90，六年沒有一年虧損，
-          參數經過 450 組掃描與分段、成本、鄰域三關驗證。<br>
-          下方 11 分是短週期對照，依你的設定預設<b>多空都做</b>。它的完整六年回測（只做多）
-          是報酬÷回撤 3.15，明顯不如 4 小時；而且 11 分要用 1 分 K 合成，
-          儀表板拿不到六年資料，畫面上的績效樣本很短，筆數少於 5 筆時會標「樣本不足」。</div>
+        <div class="warn"><b>下方是 15 分 100/23，也就是你在 TradingView 上的原始參數。</b>
+          PAXG 2020–2026 六年回測（多空都做、已扣成本）：128 筆、勝率 45%、獲利因子 1.62、
+          平均持倉約 12 天，總報酬 +102%、最大回撤 19%；同期一直抱著 +126%、回撤 30%。
+          報酬略少，但回撤少三分之一，<b>風險調整後贏過一直抱著</b>（只做多的版本又更好一點）。<br>
+          要知道的是：<b>獲利很集中</b>，前三筆就占淨利七成；逐年看它贏在 2021、2026 這種跌勢或盤整年，
+          2023–2025 的多頭每年都落後一直抱著。空單六年下來是小賠，賣出訊號當成「多單先出場」比較合適。<br>
+          畫面上的淨報酬只算最近 50,000 根（約兩年），跟上面六年的數字不會一樣。</div>
 
         <div class="warn"><b>主源掛了會自動換備援。</b>順位是 Binance → Coinbase → OKX，
           現價再多一層 gold-api 現貨金價墊底。現價與 K 線分開切換：現價一失敗就立刻換家，
@@ -750,7 +774,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V2.02";
+const VERSION = "V1.11";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -808,68 +832,6 @@ function atrCalc(bars, len){
 }
 
 // smoothrng(x,t,m)
-/* ============ 策略核心（V2.01 起）============
-   V1.x 用的是 Range Filter（通道突破、全額進出、會做空）。V2 全部換掉，原因是
-   六年 PAXG 加七個商品的測試結論：做空在每一個市場都是負貢獻，全額進出的回撤
-   遠高於分批，而 Range Filter 本身長期跑輸買進持有。
-
-   V2 的策略是「Donchian 方向 + 逆勢累積、只做多」：
-     方向   突破 n 根高點進場；跌破 exitN 根低點回到空手。跌破 n 根低點的空方訊號
-            **只用來平多，不建立空單**。
-     部位   進場先建第一段，之後每逆行 step×ATR 加一段，最多 segs 段。
-            部位是連續的（0 ~ 1），不是全有全無。
-     出場   方向訊號離開多方，或以平均成本計反向走 stop×ATR 觸及硬停損。
-            不主動停利——讓大波段抱住。
-
-   參數（2026-09-13 掃描 450 組、篩掉筆數<10／集中度>60%／連虧>8 之後的冠軍）：
-     4 小時  回看 1200 小時・3 段・step 1.5・stop 3 → +51.5%／回撤 6.2%（8.24）
-     11 分   回看  800 小時・3 段・step 1.0・stop 4 → +38.5%／回撤 11.0%（3.49）
-   對照買進持有 +120.0%／回撤 29.0%（4.14）。贏在回撤，不是報酬——年化約 7.2%
-   對全抱 14%。這是保險不是收益。 */
-
-/* Wilder ATR。與 research/dual_engine.py 的 atr() 完全一致：前 n 根為 null、
-   第 n 根用簡單平均當種子。用 rma() 會因為初始化方式不同而對不上 python 的數字。 */
-function atrWilder(bars, n){
-  const tr = new Array(bars.length).fill(null);
-  for(let i=1;i<bars.length;i++){
-    const h=bars[i].h, l=bars[i].l, pc=bars[i-1].c;
-    tr[i] = Math.max(h-l, Math.abs(h-pc), Math.abs(l-pc));
-  }
-  const out = new Array(bars.length).fill(null);
-  if(bars.length <= n) return out;
-  let s=0; for(let i=1;i<=n;i++) s+=tr[i];
-  out[n] = s/n;
-  for(let i=n+1;i<bars.length;i++) out[i] = (out[i-1]*(n-1)+tr[i])/n;
-  return out;
-}
-
-/* 滑動極值（不含當根），單調佇列 O(n)。回看會拉到數千根，每根重算 Math.max
-   會讓 11 分那 28 萬根卡住。 */
-function rollMax(x, n){
-  const out=new Array(x.length).fill(null), dq=[];
-  for(let i=0;i<x.length;i++){
-    if(i>=n) out[i]=x[dq[0]];
-    while(dq.length && x[dq[dq.length-1]] <= x[i]) dq.pop();
-    dq.push(i);
-    if(dq[0] <= i-n) dq.shift();
-  }
-  return out;
-}
-function rollMin(x, n){
-  const out=new Array(x.length).fill(null), dq=[];
-  for(let i=0;i<x.length;i++){
-    if(i>=n) out[i]=x[dq[0]];
-    while(dq.length && x[dq[dq.length-1]] >= x[i]) dq.pop();
-    dq.push(i);
-    if(dq[0] <= i-n) dq.shift();
-  }
-  return out;
-}
-
-/* ============ Range Filter（V1 的核心，V2.02 加回來當第二種方向訊號）============
-   TVC:GOLD 19.5 年實測 200/23：+608.28%／回撤 24.77%／774 筆／獲利因子 1.443。
-   關鍵是**不要**配止損止盈與移動止損——那三個東西會把每筆切碎，
-   同一組參數從 +363% 變成 -27%（19.5 年、含成本實測）。這裡不實作它們。 */
 function smoothrng(x, t, m){
   const diff = x.map((v,i)=> i===0 ? 0 : Math.abs(v - x[i-1]));
   const avrng = ema(diff, t);
@@ -877,26 +839,29 @@ function smoothrng(x, t, m){
   return ema(avrng, wper).map(v => (v==null?null:v*m));
 }
 
-// 對應 Pine 的遞迴，bar0 的 nz(rngfilt[1]) 視為 0
+// rngfilt(x,r) —— 對應 Pine 的遞迴，bar0 的 nz(rngfilt[1]) 視為 0
 function rngfilt(x, r){
   const out = new Array(x.length);
   let prev = 0;
   for(let i=0;i<x.length;i++){
     const xi = x[i], ri = (r[i]==null?0:r[i]);
-    out[i] = prev = (xi > prev)
-      ? ((xi - ri < prev) ? prev : xi - ri)
-      : ((xi + ri > prev) ? prev : xi + ri);
+    let f;
+    if(xi > prev) f = (xi - ri < prev) ? prev : xi - ri;
+    else          f = (xi + ri > prev) ? prev : xi + ri;
+    out[i] = f; prev = f;
   }
   return out;
 }
 
-/* Range Filter 方向。回傳與 dirDonchian 相同的介面，兩者可互換。
-   它天然就是**反轉系統**：狀態只有 +1／-1，不經過空手，所以「多空都做」不必另外處理；
-   選「只做多」時由部位層把 -1 當成出場。 */
-function dirRangeFilter(bars, per, mult){
+/* ============ 主計算 ============ */
+function compute(bars, P){
   const n = bars.length;
-  const src = bars.map(b => (b.h + b.l) / 2);      // TradingView 上驗證用的 (H+L)/2
-  const smrng = smoothrng(src, per, mult);
+  const src = bars.map(b =>
+    P.srcMode==="close" ? b.c :
+    P.srcMode==="hlc3"  ? (b.h+b.l+b.c)/3 : (b.h+b.l)/2
+  );
+
+  const smrng = smoothrng(src, P.per, P.mult);
   const filt  = rngfilt(src, smrng);
 
   const upward = new Array(n).fill(0), downward = new Array(n).fill(0);
@@ -907,172 +872,216 @@ function dirRangeFilter(bars, per, mult){
     downward[i] = filt[i] < pf ? pd+1 : filt[i] > pf ? 0 : pd;
   }
 
-  const dir = new Array(n).fill(0);
-  let cur = 0;
+  const hband = filt.map((f,i)=> f + (smrng[i]||0));
+  const lband = filt.map((f,i)=> f - (smrng[i]||0));
+
+  const atr    = atrCalc(bars, P.atrLen);
+  const atrAvg = sma(atr.map(v=>v==null?0:v), P.atrLen*3);
+  const volMA  = sma(bars.map(b=>b.v), P.volLen);
+
+  const sig = new Array(n).fill(0);      // 1=買 -1=賣
+  let condIni = 0;
+  const rows = [];
+
   for(let i=0;i<n;i++){
+    // 原碼的多空條件（含 src 與前值相等時不成立的原始行為）
     const rose = i>0 && src[i] > src[i-1];
     const fell = i>0 && src[i] < src[i-1];
-    if(src[i] > filt[i] && (rose || fell) && upward[i]   > 0) cur = 1;
-    else if(src[i] < filt[i] && (rose || fell) && downward[i] > 0) cur = -1;
-    dir[i] = cur;
-  }
-  // 暖機：內層 EMA 尚未收斂時通道偏窄，訊號全是雜訊。V1 用 6×per，沿用。
-  const warm = Math.min(6 * per, n);
-  for(let i=0;i<warm;i++) dir[i] = 0;
+    const longCond  = src[i] > filt[i] && (rose || fell) && upward[i] > 0;
+    const shortCond = src[i] < filt[i] && (rose || fell) && downward[i] > 0;
 
-  return {dir, HH: filt.map((f,i)=> f + (smrng[i]||0)),
-          LL: filt.map((f,i)=> f - (smrng[i]||0)),
-          HE: filt, LE: filt, warm};
+    // 修正版波動度過濾：ATR 要高於自身均值
+    const volaOK = !P.useAtr2 || (atr[i]!=null && atrAvg[i]!=null && atr[i] > atrAvg[i]);
+    // 交易量過濾（原碼邏輯，資料源有真實量才有意義）
+    const volOK  = !P.useVol || (volMA[i]!=null && bars[i].v > volMA[i]*0.8);
+
+    const L = longCond && volaOK && volOK;
+    const S = shortCond && volaOK && volOK;
+
+    const prevIni = condIni;
+    if(L) condIni = 1; else if(S) condIni = -1;
+
+    if(L && prevIni === -1){ sig[i] = 1;  rows.push({i,dir:1}); }
+    if(S && prevIni === 1){  sig[i] = -1; rows.push({i,dir:-1}); }
+  }
+
+  // 暖機區（內層 EMA 尚未收斂，通道偏窄）的訊號一律丟棄，不進圖表也不進統計
+  const warm = Math.min(6 * P.per, n);
+  const dropped = rows.filter(r => r.i < warm).length;
+  for(let i=0; i<warm; i++) sig[i] = 0;
+  const keptRows = rows.filter(r => r.i >= warm);
+
+  return {src, smrng, filt, upward, downward, hband, lband, atr, atrAvg, volMA,
+          sig, rows: keptRows, warm, dropped, rawCount: rows.length};
 }
 
-/* Donchian 三態方向。內部仍會進入 -1（空方）狀態，只是部位層不建立空單——
-   這一點必須保留，因為 -1 會影響後續的狀態轉移，改掉就對不上驗證過的數字。 */
-function dirDonchian(bars, n, exitN, reverse){
-  /* reverse=true 時走**反轉系統**：拿掉「回到空手」那條規則，突破做多、跌破做空，
-     訊號翻轉就直接反手，永遠在場。這是使用者對「多空都做」的定義。
-     reverse=false（只做多／只做空）維持三態：出場門檻比進場鬆（exitN = 回看/3），
-     出場後要等下一次真正的突破才進場，中間是空手。 */
-  const C=bars.map(b=>b.c), H=bars.map(b=>b.h), L=bars.map(b=>b.l);
-  const HH=rollMax(H,n), LL=rollMin(L,n);
-  const HE=rollMax(H,exitN), LE=rollMin(L,exitN);
-  const out=new Array(bars.length).fill(0);
-  let cur=0;
+/* ============ 廣度 × 密度（第三策略・日線） ============
+   跟 Range Filter 完全不同的一類：不看通道突破，看「跌勢有多廣、多久」。
+     動量廣度 = 1/3/6/12 個月動量有幾個為正（一般回檔只打掉短天期，趨勢反轉會全部翻負）
+     新高密度 = 過去一年有多少比例的日子收在年度高點 95% 以上（多頭頻繁創高、空頭幾乎不創）
+   兩者相乘直接當部位比例：1 = 滿倉做多、0 = 完全空手，中間是分級減碼。
+   **不做空。** research/new_indicators.py 的原始定義就是 0~1，移植時一度寫成
+   ×2-1 映射到 -1~+1，等於指標轉弱就自動翻空，結果 PAXG 五年跑出 -27%／回撤 44%。
+   那既不是原策略，也違反已驗證的結論：做空在黃金上系統性虧錢，且必然推高回撤。
+   部位是連續的，所以回測不能用上面那套全額進出，要用 backtestScaled。
+
+   密度要除以自身的歷史中位數做正規化，而中位數**只能用到當下為止的歷史**——
+   用整份樣本算會把未來資訊洩進回測，實盤也算不出那個除數。 */
+const BD_MONTHS = [1, 3, 6, 12], BD_WIN = 252, BD_NEAR = 0.95, BD_MINHIST = 252;
+
+function monthEnds(bars){
+  const set = new Set();
   for(let i=0;i<bars.length;i++){
-    if(i<n) continue;
-    if(C[i]>HH[i]) cur=1;
-    else if(C[i]<LL[i]) cur=-1;
-    else if(!reverse && cur===1 && C[i]<LE[i]) cur=0;
-    else if(!reverse && cur===-1 && C[i]>HE[i]) cur=0;
-    out[i]=cur;
+    const a = new Date(bars[i].t), b = i+1<bars.length ? new Date(bars[i+1].t) : null;
+    if(!b || a.getUTCMonth() !== b.getUTCMonth() || a.getUTCFullYear() !== b.getUTCFullYear()) set.add(i);
   }
-  return {dir:out, HH, LL, HE, LE};
+  return set;
 }
 
-/* 主計算：回傳部位序列與繪圖需要的通道線。
-   移植自 research/dual_engine.py 的 backtest_asym（long_cfg + short 關閉），
-   逐行對齊，包含 blocked 機制——停損後若不封鎖同方向，下一步會用同一個訊號
-   當根重開，等於扣了成本又原封不動買回來，停損完全失效。 */
-function compute(bars, P){
-  const n = bars.length;
-  const useRF = P.sigType === "rf";
-  const look = Math.max(20, Math.round(P.lookH * 60 / P.tfMin));
-  const exitN = Math.max(10, Math.round(look/3));
-  const rev = P.mode === "both";          // 多空都做＝反轉系統，永遠在場
-  // Range Filter 本身就是反轉系統，不吃 rev 參數；Donchian 才需要三態／兩態之分。
-  const D = useRF ? dirRangeFilter(bars, P.per, P.mult)
-                  : dirDonchian(bars, look, exitN, rev);
-  const A = atrWilder(bars, P.atrLen);
-  const segFrac = 1.0 / P.segs;
+function computeBD(bars){
+  const n = bars.length, C = bars.map(b=>b.c);
+  const lbs = BD_MONTHS.map(m=>Math.round(m*21));
+  const maxLb = Math.max(...lbs);
 
-  const pos=new Array(n).fill(0), avgArr=new Array(n).fill(null);
-  const sig=new Array(n).fill(0), rows=[];
-  let side=0, filled=0, avg=0, lastAdd=0, blocked=0, cur=0;
+  const breadth = new Array(n).fill(null);
+  for(let i=maxLb;i<n;i++){
+    let k=0; for(const L of lbs) if(C[i] > C[i-L]) k++;
+    breadth[i] = k/lbs.length;
+  }
 
+  // 新高密度 + 只用歷史的中位數正規化
+  const raw = new Array(n).fill(null), hist = [], density = new Array(n).fill(null);
+  for(let i=BD_WIN;i<n;i++){
+    let hi=-Infinity; for(let j=i-BD_WIN;j<=i;j++) if(C[j]>hi) hi=C[j];
+    let cnt=0;   for(let j=i-BD_WIN;j<=i;j++) if(C[j] >= hi*BD_NEAR) cnt++;
+    raw[i] = cnt/(BD_WIN+1);
+    let lo=0, hiIdx=hist.length;
+    while(lo<hiIdx){ const mid=(lo+hiIdx)>>1; if(hist[mid]<raw[i]) lo=mid+1; else hiIdx=mid; }
+    hist.splice(lo,0,raw[i]);
+    if(hist.length < BD_MINHIST){ density[i]=0; continue; }
+    const med = hist[hist.length>>1];
+    density[i] = med>0 ? Math.max(0, Math.min(1, raw[i]/(med*2))) : 0;
+  }
+
+  // 月頻檢查：只有月底能改變部位
+  const me = monthEnds(bars), pos = new Array(n).fill(0);
+  let cur = 0;
   for(let i=0;i<n;i++){
-    const d=D.dir[i], a=A[i], c=bars[i].c;
-    if(a!=null && a>0){
-      if(blocked!==0 && d!==blocked) blocked=0;
-
-      // 反轉系統下不啟用硬停損——停損一定會產生空手期，與「只有多或空」互斥。
-      // 這個模式的風險控制靠訊號反手，不靠停損。
-      if(!rev && side!==0 && filled>0){
-        if((avg-c)*side >= P.stopAtr*a){
-          blocked=side;
-          rows.push({i, dir:-1, why:"停損", price:c, avg, w:filled*segFrac, side});
-          sig[i]=-1; side=0; filled=0; avg=0; cur=0;
-        }
-      }
-      if(side!==0 && d!==side){
-        rows.push({i, dir:-1, why:"訊號離開", price:c, avg, w:filled*segFrac, side});
-        sig[i]=-1; side=0; filled=0; avg=0; cur=0;
-      }
-      // 方向由 P.mode 決定要不要接受。加碼、停損、平倉的算式本來就用 side 表達，
-      // 對空單自動成立（side=-1 時「逆行」就是價格上漲），不需要另寫一套。
-      const allow = d > 0 ? (P.mode !== "short") : (P.mode !== "long");
-      if(side===0 && d!==0 && d!==blocked && allow){
-        side=d; filled=1; avg=c; lastAdd=c; cur=d*segFrac;
-        rows.push({i, dir:d>0?1:-2, why:d>0?"進場做多":"進場做空", price:c, avg:c, w:segFrac});
-        sig[i]=d;
-      }else if(side!==0 && filled<P.segs){
-        if(-(c-lastAdd)*side >= P.stepAtr*a){   // 逆勢加碼
-          const wOld=filled*segFrac;
-          avg=(avg*wOld + c*segFrac)/(wOld+segFrac);
-          filled++; lastAdd=c; cur=side*filled*segFrac;
-          rows.push({i, dir:2, why:"加碼第"+filled+"段", price:c, avg, w:Math.abs(cur)});
-        }
-      }
-    }
-    pos[i]=cur;
-    avgArr[i]=side!==0?avg:null;
+    if(me.has(i) && breadth[i]!=null && density[i]!=null) cur = breadth[i]*density[i];
+    pos[i] = cur;
   }
 
-  const warm=Math.min(useRF ? (D.warm + P.atrLen) : (look + P.atrLen), n);
-  return {pos, avg:avgArr, dir:D.dir, hband:D.HH, lband:D.LL,
-          filt:D.LE, sig, rows:rows.filter(r=>r.i>=warm), warm,
-          look: useRF ? P.per : look, exitN, useRF};
+  // 相容 Range Filter 的資料結構：方向改變時給一個訊號，訊號歷史與警報才有東西可讀
+  // 部位只在 0 ~ 1 之間，所以訊號是「進場／出場」而不是「翻多／翻空」。
+  // dir=-1 在這套策略代表回到空手，不是建立空單。
+  const sig = new Array(n).fill(0), rows = [];
+  let prevIn = 0;
+  for(let i=0;i<n;i++){
+    const inMkt = pos[i] > 0.02 ? 1 : 0;
+    if(inMkt !== prevIn){ const d = inMkt ? 1 : -1; sig[i] = d; rows.push({i, dir:d}); }
+    prevIn = inMkt;
+  }
+  const warm = Math.min(Math.max(maxLb, BD_WIN + BD_MINHIST), n);
+  for(let i=0;i<warm;i++) sig[i] = 0;
+  return {sig, pos, breadth, density, warm, dropped:0,
+          rows: rows.filter(r=>r.i>=warm), rawCount: rows.length,
+          filt:null, hband:null, lband:null};
 }
 
-/* 逐根複利回測。部位連續，所以成本按部位變化量計；回撤含持倉期間的浮動虧損，
-   不是只算已平倉交易——後者會嚴重低估實際要承受的東西。 */
-function backtest(bars, R, P){
-  const n=bars.length, pos=R.pos, cost=P.cost;
-  let eq=1, prev=0, peak=1, mdd=0;
-  const curve=[0], trades=[];
-  let leg=null;
+/* 分數部位回測：逐根權益、成本按部位變化量計。
+   與上面的 backtest() 不同，這裡的最大回撤含持倉期間的浮動虧損，是真實可感受的回撤。 */
+function backtestScaled(bars, R, P){
+  const n = bars.length, pos = R.pos;
+  let eq = 1, cur = 0, peak = 1, mdd = 0;
+  const trades = []; let leg = null;
+  const curve = [0];
   for(let i=0;i<n-1;i++){
-    const p=pos[i];
-    if(p!==prev){
-      eq *= (1 - Math.abs(p-prev)*cost/100);
-      /* 一筆交易的界線是**方向改變**，不是部位歸零。反轉系統下部位會從 +0.33
-         直接跳到 -0.33，中間不經過 0——只看「歸零」的話一筆都認不出來（實測筆數 0）。
-         同方向的加碼不算新交易，所以要比較的是 side 而不是 pos。 */
-      const ps = prev > 0 ? 1 : prev < 0 ? -1 : 0;
-      const ns = p > 0 ? 1 : p < 0 ? -1 : 0;
-      if(ps !== 0 && ns !== ps && leg){
-        const w=Math.abs(prev), av=R.avg[i-1]!=null?R.avg[i-1]:leg.entry;
-        const gross=(bars[i].c/av-1)*100*w*leg.dir;
-        trades.push({...leg, exit:bars[i].c, exitIdx:i, avg:av, weight:w,
-                     gross, ret:gross-2*cost*w, held:i-leg.idx,
-                     why:(R.rows.find(r=>r.i===i)||{}).why||"出場"});
-        leg=null;
+    const want = pos[i];
+    if(want !== cur){
+      eq *= (1 - Math.abs(want-cur) * (P.cost||0)/100);
+      const wd = want>0.02?1:want<-0.02?-1:0, cd = cur>0.02?1:cur<-0.02?-1:0;
+      if(leg && wd !== cd){
+        const ret = (bars[i].c/leg.entry - 1)*100*(cd>0?1:-1) - 2*(P.cost||0);
+        trades.push({...leg, exit:bars[i].c, why:"部位翻向", gross:ret+2*(P.cost||0),
+                     ret, exitIdx:i, held:i-leg.idx});
+        leg = null;
       }
-      if(ns !== 0 && (leg === null)) leg={idx:i, entry:bars[i].c, t:bars[i].t, dir:ns};
-      prev=p;
+      if(!leg && wd !== 0) leg = {dir:wd, entry:bars[i].c, peak:bars[i].c, idx:i, t:bars[i].t};
+      cur = want;
     }
-    eq *= (1 + prev*(bars[i+1].c/bars[i].c - 1));
+    eq *= (1 + cur*(bars[i+1].c/bars[i].c - 1));
     curve.push((eq-1)*100);
-    if(eq>peak) peak=eq;
-    const dd=(peak-eq)/peak*100; if(dd>mdd) mdd=dd;
+    if(eq>peak) peak = eq;
+    const dd = (peak-eq)/peak*100; if(dd>mdd) mdd = dd;
   }
-  const wins=trades.filter(t=>t.ret>0), losses=trades.filter(t=>t.ret<=0);
-  const gp=wins.reduce((s,t)=>s+t.ret,0), gl=Math.abs(losses.reduce((s,t)=>s+t.ret,0));
-  let streak=0, maxStreak=0;
-  for(const t of trades){ streak=t.ret<=0?streak+1:0; if(streak>maxStreak) maxStreak=streak; }
-  const gains=wins.map(t=>t.ret).sort((a,b)=>b-a);
-  const totG=gains.reduce((s,x)=>s+x,0);
-  return {trades, open:leg, curve, total:trades.length, mdd,
-          net:(eq-1)*100,
-          win: trades.length? wins.length/trades.length*100 : null,
-          pf: gl? gp/gl : null,
+  const closed = trades;
+  const wins = closed.filter(t=>t.ret>0), losses = closed.filter(t=>t.ret<=0);
+  const gp = wins.reduce((s,t)=>s+t.ret,0), gl = Math.abs(losses.reduce((s,t)=>s+t.ret,0));
+  const net = (eq-1)*100;
+  return {trades:closed, open:leg, curve, total:closed.length,
+          winRate: closed.length? wins.length/closed.length*100 : null,
           avgWin: wins.length? gp/wins.length : null,
           avgLoss: losses.length? -gl/losses.length : null,
-          worst: trades.length? Math.min(...trades.map(t=>t.ret)) : null,
-          conc: totG>0? gains[0]/totG*100 : null,
-          maxStreak,
-          avgHeld: trades.length? trades.reduce((s,t)=>s+t.held,0)/trades.length : null,
-          pos: pos[n-1]};
+          pf: gl? gp/gl : null, net, gross:net, costDrag:0, mdd,
+          avgHeld: closed.length? closed.reduce((s,t)=>s+t.held,0)/closed.length : null,
+          avgSwing: null};
 }
 
-/* 買進持有參照。所有結論都要跟它比——這個專案的每一次「看起來很好」，
-   都是在補上這一行之後才看出實際上輸了。 */
-function buyHold(bars){
-  const c0=bars[0].c;
-  let peak=c0, mdd=0;
-  for(const b of bars){
-    if(b.c>peak) peak=b.c;
-    const dd=(peak-b.c)/peak*100; if(dd>mdd) mdd=dd;
+/* ============ 回測（純訊號進出，無止損/止盈/移動止損） ============ */
+function backtest(bars, R, P){
+  const trades = [];
+  let pos = null;
+
+  for(let i=0;i<bars.length;i++){
+    const b = bars[i];
+
+    if(pos){
+      let exit = null, why = "";
+      const dir = pos.dir;
+      pos.peak = dir>0 ? Math.max(pos.peak, b.h) : Math.min(pos.peak, b.l);
+
+      if(R.sig[i] !== 0 && R.sig[i] !== dir){ exit = b.c; why="反向訊號"; }
+
+      if(exit!=null){
+        const gross = dir>0 ? (exit/pos.entry-1)*100 : (pos.entry/exit-1)*100;
+        const ret = gross - 2*(P.cost||0);   // 進出各扣一次單趟成本
+        trades.push({...pos, exit, why, gross, ret, exitIdx:i, held:i-pos.idx});
+        pos = null;
+      }
+    }
+
+    // 只做多模式：空方訊號僅用於平多（上面已處理），不建立空單
+    if(!pos && R.sig[i] !== 0 && !(P.longOnly && R.sig[i] < 0)){
+      pos = {dir:R.sig[i], entry:b.c, peak:b.c, idx:i, t:b.t};
+    }
   }
-  return {net:(bars[bars.length-1].c/c0-1)*100, mdd};
+
+  const closed = trades;
+  const wins = closed.filter(t=>t.ret>0), losses = closed.filter(t=>t.ret<=0);
+  const gp = wins.reduce((s,t)=>s+t.ret,0);
+  const gl = Math.abs(losses.reduce((s,t)=>s+t.ret,0));
+
+  let eq = 0, peak = 0, mdd = 0;
+  const curve = [0];
+  for(const t of closed){
+    eq += t.ret; curve.push(eq);
+    peak = Math.max(peak, eq);
+    mdd = Math.max(mdd, peak - eq);
+  }
+
+  const gross = closed.reduce((s,t)=>s+t.gross,0);
+  const costDrag = gross - eq;
+  return {
+    trades: closed, open: pos, curve,
+    total: closed.length,
+    winRate: closed.length ? wins.length/closed.length*100 : null,
+    avgWin: wins.length ? gp/wins.length : null,
+    avgLoss: losses.length ? -gl/losses.length : null,
+    pf: gl>0 ? gp/gl : (gp>0 ? Infinity : null),
+    net: eq, gross, costDrag, mdd,
+    avgHeld: closed.length ? closed.reduce((s,t)=>s+t.held,0)/closed.length : null,
+    avgSwing: closed.length ? closed.reduce((s,t)=>s+Math.abs(t.gross),0)/closed.length : null
+  };
 }
 
 /* ============ 取資料 ============ */
@@ -1080,23 +1089,22 @@ let RAW1M = [], SYMBOL = "";
 
 /* 畫面預設只顯示最近這麼多根；統計與訊號仍吃滿全部根數。
    兩套策略的週期不同，同樣根數涵蓋的天數差很多，所以各自設定。 */
-/* 顯示根數：讓兩張圖涵蓋的**時間**接近，而不是根數接近。
-   4 小時 600 根＝100 天；11 分要 12,000 根才有 92 天。用同樣根數的話，
-   11 分只會畫出 7 天，跟上面那張完全不同尺度，沒辦法對照著看。 */
-const VIEW_DEFAULT = {A: 600, B: 12000};
+const VIEW_DEFAULT = {A: 600, B: 900, C: 500};
 function viewBars(p){
   const v = +$("view" + p.k).value;
   return v > 0 ? v : VIEW_DEFAULT[p.k];
 }
 
-/* V2.01 起：A = 4 小時（原生 K，主力策略），B = 11 分（由 1 分線聚合，短週期對照）。
-   V1 的沿革（Range Filter 時代）：11 分 300/23 + 15 分 100/23 + 日線廣度×密度，
-   三套在 V2 全部移除，理由見策略說明面板。 */
+/* 上方預設 11 分（由 1 分線聚合），下方預設 15 分（交易所原生 15m K，另外抓）。
+   下方的沿革：V1.06 以前 2 分 → V1.07 日線 25/8 → V1.08 15 分 100/23（使用者 TradingView 原始參數）。 */
 const PANELS = [
-  {k:"A", label:"4 小時", tf:"4h",  bars:[], R:null, BT:null, VIEW:null,
+  {k:"A", label:"上方", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.A, off:0}, LIVE:null},
-  {k:"B", label:"11 分",  tf:"11m", bars:[], R:null, BT:null, VIEW:null,
+  {k:"B", label:"下方", tf:"15m", bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.B, off:0}, LIVE:null},
+  // 第三策略走日線、部位連續（-1~+1），計算與回測都走另一條路，見 computeBD / backtestScaled
+  {k:"C", label:"第三", tf:"1d", type:"bd", bars:[], R:null, BT:null, VIEW:null,
+   ZOOM:{span:VIEW_DEFAULT.C, off:0}, LIVE:null},
 ];
 const PAN = k => PANELS.find(p => p.k === k);
 
@@ -1320,7 +1328,7 @@ function aggregate(bars1m, minutes){
 }
 
 /* 合成週期（2 分、11 分）都由 1 分線聚合；兩邊都選合成週期時只抓一次最長的那份共用，
-   否則等於把最慢的那步做兩遍。原生週期（例如 4 小時）各自另抓。 */
+   否則等於把最慢的那步做兩遍。原生週期（例如下方預設的 15 分）各自另抓。 */
 async function fetchAll(onProgress){
   const custom = PANELS.filter(p => !NATIVE_TF.has(p.tf));
   if(custom.length){
@@ -1346,20 +1354,20 @@ async function fetchSpot(){
 
 /* ============ 讀參數 ============ */
 function readParams(p){
-  // 回看用「小時」而不是「根數」：換週期時涵蓋的時間長度才不會跟著變，
-  // 這是跨週期比較唯一站得住的做法（cost_floor 的量測結論）。
+  // 第三策略（廣度 × 密度）沒有可調的 per/mult —— 時間尺度固定用 1/3/6/12 個月
+  // 與 252 日，刻意不開放調整，否則就只是換個方式過擬合。
+  if(p.type === "bd"){
+    return {srcMode:"close", per:0, mult:0, atrLen:12, atrMult:1.5, volLen:20,
+            useVol:false, useAtr2:false, longOnly:false,
+            cost: Math.max(0, +$("cost").value || 0)};
+  }
   return {
-    mode:    $("mode" + p.k).value,
-    sigType: $("sig" + p.k + "Type").value,
-    per:     Math.max(2, Math.round(+$("per" + p.k).value || 200)),
-    mult:    Math.max(0.1, +$("mult" + p.k).value || 23),
-    lookH:   Math.max(24, +$("look" + p.k).value || 1200),
-    segs:    Math.max(1, Math.min(8, Math.round(+$("segs" + p.k).value || 3))),
-    stepAtr: Math.max(0.1, +$("step" + p.k).value || 1.5),
-    stopAtr: Math.max(0.5, +$("stop" + p.k).value || 3),
-    atrLen:  14,
-    tfMin:   tfMinutes(p.tf),
-    cost:    Math.max(0, +$("cost").value || 0),
+    srcMode: $("srcSel").value,
+    per: Math.max(1, +$("per" + p.k).value || 100),
+    mult: Math.max(0.1, +$("mult" + p.k).value || 23),
+    atrLen: 12, atrMult: 1.5, volLen: 20,
+    useVol: false, useAtr2: false, longOnly: $("longOnly" + p.k).checked,
+    cost: Math.max(0, +$("cost").value || 0)
   };
 }
 
@@ -1391,46 +1399,36 @@ function renderTopCards(bars, spot){
 /* 每套策略一列兩個膠囊：左邊方向、右邊細節與持倉，
    兩者的浮動數字要能被每秒現價更新，所以 id 要帶上策略代號。 */
 function renderSigBox(p){
-  /* V2 沒有「買進／賣出」兩態。這套策略只做多，部位是連續的 0~100%，
-     所以主格顯示的是**現在的部位**，不是方向訊號——「持倉 67%」比「買進」
-     準確得多，因為它同時告訴你還有多少沒進場。 */
   const bars = p.bars, R = p.R, BT = p.BT, k = p.k;
   const n = bars.length - 1, last = bars[n];
-  const lastAct = R.rows.length ? R.rows[R.rows.length-1] : null;
-  const pos = R.pos[n] || 0;
-  const avg = R.avg[n];
+  const lastSig = R.rows.length ? R.rows[R.rows.length-1] : null;
+  const held = BT.open;
 
-  let tone = "", big, line1, line2;
+  let tone = "";
+  let big  = `<div class="v mid">無訊號</div>`;
+  let line1 = `<span class="sigmeta">目前參數下區間內未觸發</span>`;
 
-  if(pos > 0.001){
-    tone = " long";
-    big = `<div class="v up">持倉 ${(pos*100).toFixed(0)}%</div>`;
-    const float = avg != null ? (last.c/avg - 1) * 100 : null;
-    line2 = `<span class="sigmeta">均價 ${avg!=null?fmt(avg):"—"}　浮動 `
-          + `<span id="heldFloat${k}" class="${(float||0)>=0?"up":"down"}">`
-          + `${float!=null?pct(float):"—"}</span></span>`;
-  }else{
-    big = `<div class="v mid">空手</div>`;
-    const lbl = R.useRF ? "上軌" : "等待突破";
-    line2 = `<span class="sigmeta">${lbl} `
-          + (R.hband[n] != null ? fmt(R.hband[n]) : "—")
-          + `（距現價 ${R.hband[n]!=null?pct((R.hband[n]/last.c-1)*100):"—"}）</span>`;
-  }
-
-  if(lastAct){
-    const chg = (last.c/lastAct.price - 1) * 100;
-    line1 = `<span class="sigmeta">${barTime(bars[lastAct.i].t, p.tf)} ${lastAct.why}</span>`
-          + `<span class="sigmeta">之後 `
+  if(lastSig){
+    const sb = bars[lastSig.i];
+    const chg = (last.c/sb.c - 1) * 100 * lastSig.dir;
+    tone = lastSig.dir > 0 ? " long" : " short";
+    big  = `<div class="v ${lastSig.dir>0?"up":"down"}">${lastSig.dir>0?"▲ 買進":"▼ 賣出"}</div>`;
+    line1 = `<span class="sigmeta">${barTime(sb.t, p.tf)}</span>`
+          + `<span class="sigmeta">訊號後至今 `
           + `<span id="sigSince${k}" class="${chg>=0?"up":"down"}">${pct(chg)}</span></span>`;
-  }else{
-    line1 = `<span class="sigmeta">這段期間沒有進出場</span>`;
   }
 
-  // 樣本太少時，淨報酬那格的數字沒有統計意義，要講明而不是照樣顯示
-  const yrs = (bars[n].t - bars[0].t) / 31557600000;
-  const thin = BT.total < 5;
+  const heldPct = held ? (held.dir>0 ? (last.c/held.entry-1) : (held.entry/last.c-1))*100 : null;
+  const line2 = held
+    ? `<span class="sigmeta">持倉 ${held.dir>0?"多單":"空單"}　進場 ${fmt(held.entry)}　浮動 `
+      + `<span id="heldFloat${k}" class="${heldPct>=0?"up":"down"}">${pct(heldPct)}</span></span>`
+    : `<span class="sigmeta">持倉 空手　等待下一個訊號</span>`;
+
+  /* 淨報酬取這套策略自己的回測結果（已扣交易成本），上下兩格是各自的數字。
+     用淨報酬而不是勝率：勝率高但每次只賺一點、賠一次全吐回去的組合毫無意義。
+     這一格只留一位小數，完整數字在績效統計裡。 */
   const net = BT.net;
-  const netCls = thin ? "mid" : (net >= 0 ? "up" : "down");
+  const netCls = net == null ? "mid" : (net >= 0 ? "up" : "down");
   const netTxt = (net == null || !isFinite(net))
     ? "—" : (net >= 0 ? "+" : "") + net.toFixed(1) + "%";
 
@@ -1440,16 +1438,14 @@ function renderSigBox(p){
     + `<div class="sigcap det${tone}">`
     + `<div class="sigline">${line1}</div><div class="sigline">${line2}</div></div>`
     + `<div class="sigcap ret${tone}">`
-    + `<div class="sigline"><span class="k">${thin?"樣本不足":"淨報酬"}</span></div>`
-    + `<div class="v ${netCls}">${netTxt}</div>`
-    + (thin ? `<div class="sigline"><span class="sigmeta">僅 ${BT.total} 筆／${yrs.toFixed(1)} 年</span></div>` : "")
-    + `</div>`;
+    + `<div class="sigline"><span class="k">淨報酬</span></div>`
+    + `<div class="v ${netCls}">${netTxt}</div></div>`;
 
   p.LIVE = {
-    sigPrice: lastAct ? lastAct.price : null,
-    sigDir  : pos > 0.001 ? 1 : 0,
-    entry   : avg,
-    heldDir : pos > 0.001 ? 1 : 0
+    sigPrice: lastSig ? bars[lastSig.i].c : null,
+    sigDir  : lastSig ? lastSig.dir : 0,
+    entry   : held ? held.entry : null,
+    heldDir : held ? held.dir : 0
   };
 }
 
@@ -1541,27 +1537,22 @@ function resetLive(){
 function renderSignals(p){
   const bars = p.bars, R = p.R, n = bars.length - 1;
   const rows = R.rows.slice().reverse();
-  $("sigHd" + p.k).textContent = `${tfLabel(p.tf)}・`
-    + (p.P.sigType === "rf" ? `Range Filter ${p.P.per}／${p.P.mult}`
-                            : `Donchian 回看 ${p.P.lookH} 小時`)
-    + `・${R.rows.length} 個動作`;
+  $("sigHd" + p.k).textContent = `${p.label}策略・${tfLabel(p.tf)}・${R.rows.length} 筆訊號`;
   if(!rows.length){
-    $("sigBody" + p.k).innerHTML = `<tr><td colspan="6" style="color:var(--dim2);padding:16px">
-      這段期間沒有進出場。回看長度越大訊號越稀少——這套策略本來就是低頻的，
-      4 小時六年只有 14 筆。</td></tr>`;
+    $("sigBody" + p.k).innerHTML = `<tr><td colspan="5" style="color:var(--dim2);padding:16px">
+      目前參數下沒有訊號。範圍乘數越大訊號越稀少——試著把乘數調到 4~8 看看。</td></tr>`;
     return;
   }
-  const ACT = {1:["進場","long"], 2:["加碼","long"], "-1":["出場","short"]};
   $("sigBody" + p.k).innerHTML = rows.map(r=>{
     const b = bars[r.i];
-    const chg = (bars[n].c/r.price - 1) * 100;
-    const a = ACT[r.dir] || ["—",""];
+    const chg = (bars[n].c/b.c - 1) * 100 * r.dir;
     return `<tr>
       <td data-l="時間">${barTime(b.t, p.tf)}</td>
-      <td data-l="動作"><span class="pill ${a[1]}">${r.why || a[0]}</span></td>
-      <td data-l="價格">${fmt(r.price)}</td>
-      <td data-l="平均成本" style="color:var(--dim)">${r.avg!=null?fmt(r.avg):"—"}</td>
-      <td data-l="部位">${(r.w*100).toFixed(0)}%</td>
+      <td data-l="方向"><span class="pill ${r.dir>0?"long":"short"}">${r.dir>0?"買進":"賣出"}</span></td>
+      <td data-l="訊號價">${fmt(b.c)}</td>
+      <td data-l="${p.type==="bd"?"目標部位":"過濾線"}" style="color:var(--dim)">${
+        p.type==="bd" ? (R.pos[r.i]>=0?"+":"") + (R.pos[r.i]*100).toFixed(0) + "%"
+                      : fmt(R.filt[r.i])}</td>
       <td data-l="後續變動" class="${chg>=0?"up":"down"}">${pct(chg)}</td>
     </tr>`;
   }).join("");
@@ -1580,34 +1571,27 @@ function heldText(bars, tf){
 }
 
 function renderStats(p){
-  const BT = p.BT, P = p.P, bh = buyHold(p.bars);
-  const yrs = (p.bars[p.bars.length-1].t - p.bars[0].t) / 31557600000;
-  const cagr = yrs > 0 ? (Math.pow(1 + BT.net/100, 1/yrs) - 1) * 100 : null;
-  $("statHd" + p.k).textContent =
-    `${tfLabel(p.tf)}・` + (P.sigType === "rf" ? `Range Filter ${P.per}／${P.mult}`
-                                                : `Donchian 回看 ${P.lookH} 小時`)
-    + `・${P.segs} 段・step ${P.stepAtr} ATR・stop ${P.stopAtr} ATR`;
-  const s2 = (k,v,cls="",sub="") => `<div class="stat"><div class="k">${k}</div>
+  const BT = p.BT, P = p.P;
+  $("statHd" + p.k).textContent = `${p.label}策略・${tfLabel(p.tf)}`;
+  const s = (k,v,cls="",sub="") => `<div class="stat"><div class="k">${k}</div>
      <div class="v ${cls}">${v}</div>${sub?`<div class="k" style="margin:3px 0 0">${sub}</div>`:""}</div>`;
-  const rr = BT.mdd ? BT.net/BT.mdd : null;
-  const rrBH = bh.mdd ? bh.net/bh.mdd : null;
+  // 成本吃掉毛利的比例——用來判斷這組參數是不是靠過度交易堆出來的
+  const eaten = BT.gross>0 ? BT.costDrag/BT.gross*100 : null;
   $("stats" + p.k).innerHTML =
-    s2("淨報酬", pct(BT.net), BT.net>=0?"up":"down",
-       cagr!=null ? "年化 "+pct(cagr) : "") +
-    s2("最大回撤", "-"+BT.mdd.toFixed(1)+"%", "down", "含持倉浮動虧損") +
-    s2("報酬÷回撤", rr!=null?rr.toFixed(2):"—", rr!=null&&rrBH!=null&&rr>rrBH?"up":"",
-       rrBH!=null ? "買進持有 "+rrBH.toFixed(2) : "") +
-    s2("買進持有", pct(bh.net), bh.net>=0?"up":"down", "回撤 -"+bh.mdd.toFixed(1)+"%") +
-    s2("完成交易", BT.total, "", BT.avgHeld!=null ? "平均持倉 "+heldText(BT.avgHeld, p.tf) : "") +
-    s2("勝率", BT.win!=null ? BT.win.toFixed(1)+"%" : "—",
-       BT.win==null?"":(BT.win>=50?"up":"down")) +
-    s2("獲利因子", BT.pf==null ? "—" : (BT.pf===Infinity ? "∞" : BT.pf.toFixed(2)),
-       BT.pf==null?"":(BT.pf>=1.5?"up":BT.pf>=1?"":"down")) +
-    s2("最慘單筆", BT.worst!=null?pct(BT.worst):"—", "down",
-       "最長連虧 "+BT.maxStreak+" 筆") +
-    s2("集中度", BT.conc!=null?BT.conc.toFixed(0)+"%":"—",
-       BT.conc!=null&&BT.conc>60?"down":"", "最大單筆佔獲利") +
-    s2("目前部位", (BT.pos*100).toFixed(0)+"%", BT.pos>0?"up":"", "單趟成本 "+P.cost+"%");
+    s("完成交易", BT.total, "", BT.avgHeld!=null ? "平均持倉 "+heldText(BT.avgHeld, p.tf) : "") +
+    s("勝率", BT.winRate!=null ? BT.winRate.toFixed(1)+"%" : "—",
+        BT.winRate==null?"":(BT.winRate>=50?"up":"down")) +
+    s("獲利因子", BT.pf==null ? "—" : (BT.pf===Infinity ? "∞" : BT.pf.toFixed(2)),
+        BT.pf==null?"":(BT.pf>=1.5?"up":BT.pf>=1?"":"down")) +
+    s("平均波幅", BT.avgSwing!=null ? BT.avgSwing.toFixed(2)+"%" : "—", "",
+        "單趟成本 "+P.cost+"%") +
+    s("平均獲利", BT.avgWin!=null?pct(BT.avgWin):"—","up") +
+    s("平均虧損", BT.avgLoss!=null?pct(BT.avgLoss):"—","down") +
+    s("毛報酬", pct(BT.gross), BT.gross>=0?"up":"down") +
+    s("成本拖累", BT.total ? "-"+BT.costDrag.toFixed(2)+"%" : "—", "down",
+        eaten!=null ? "吃掉毛利 "+eaten.toFixed(0)+"%" : "") +
+    s("淨報酬", pct(BT.net), BT.net>=0?"up":"down") +
+    s("最大回撤", BT.mdd?("-"+BT.mdd.toFixed(2)+"%"):"—","down");
 }
 
 /* ============ 繪圖 ============ */
@@ -1621,42 +1605,33 @@ function setupCanvas(cv){
   return {ctx, W:r.width, H:r.height};
 }
 
-/* V2 的配色邏輯跟 V1 相反：不是漲跌，是**部位狀態**。
-   紅＝持倉（做多中）、綠＝空手。整張圖一眼看過去就知道策略在場內還是場外，
-   這比逐根判斷漲跌更貼近這套策略的用法——它一年只進出兩三次。 */
-/* 部位狀態配色（使用者指定）：紅＝做多、綠＝做空、灰＝空手。
-   這張圖畫的是部位不是漲跌，所以顏色不跟著 K 棒漲跌走。 */
-const C_LONG = "#ff3b3b", C_SHORT = "#4cff00", C_FLAT = "#7a8494", C_LIVE = "#9aa7b8";
-const C_UP = C_LONG, C_DN = C_FLAT;
+const C_UP = "#ff3b3b", C_DN = "#4cff00", C_LIVE = "#00d4ff";
 const MINBARS = 40;                 // 最多放大到只剩 40 根
 
-function drawChart(p){
-  /* 畫三樣東西：K 線、Donchian 通道（上軌＝進場線、下軌＝反手線、中間虛線＝出場線）、
-     底部部位帶。部位是連續的 0~100%，色塊越實代表倉位越重——這是 V2 跟 V1 最大的
-     視覺差異，V1 的 Range Filter 只有滿倉與空手兩種狀態。 */
-  const bars = p.bars, R = p.R;
+function drawChartBD(p){
+  /* 廣度 × 密度沒有通道可畫，畫的是價格線加底部部位帶：
+     綠＝做多、紅＝做空、灰＝空手，色塊越實代表部位越滿（部位連續 -1~+1，不是全有全無）。
+     座標走跟另外兩張圖同一套 zoomState / p.VIEW，縮放、拖曳、十字游標才會一致。 */
   const cv = $("cv" + p.k);
   const {ctx, W, H} = setupCanvas(cv);
   ctx.clearRect(0, 0, W, H);
-  if(!bars.length || !R) return;
+  const bars = p.bars, pos = p.R.pos;
+  if(!bars.length) return;
 
-  const {span, s: st} = zoomState(p);
-  const e = Math.min(bars.length - 1, st + span - 1);
+  const {span, s} = zoomState(p);
+  const e = Math.min(bars.length - 1, s + span - 1);
   let lo = Infinity, hi = -Infinity;
-  for(let i = st; i <= e; i++){
-    lo = Math.min(lo, bars[i].l, R.lband[i] != null ? R.lband[i] : bars[i].l);
-    hi = Math.max(hi, bars[i].h, R.hband[i] != null ? R.hband[i] : bars[i].h);
-  }
-  const pad = (hi - lo) * 0.06 || 1;
+  for(let i = s; i <= e; i++){ if(bars[i].l < lo) lo = bars[i].l; if(bars[i].h > hi) hi = bars[i].h; }
+  const pad = (hi - lo) * 0.08 || 1;
   lo -= pad; hi += pad;
 
-  const PL = 8, PR = 66, PT = 10, PB = 22;   // 底部只留日期，部位帶已移除
-  const show = e - st + 1;
+  const PL = 8, PR = 66, PT = 10, PB = 42, BAND = 22;
+  const show = e - s + 1;
   const cw = (W - PL - PR) / Math.max(1, show);
   const ch = H - PT - PB;
-  const X = i => PL + (i - st + 0.5) * cw;
+  const X = i => PL + (i - s + 0.5) * cw;
   const Y = v => PT + (hi - v) / (hi - lo) * ch;
-  p.VIEW = {s: st, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
+  p.VIEW = {s, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
 
   // 格線與價格軸
   ctx.font = "11px ui-monospace,monospace";
@@ -1669,89 +1644,152 @@ function drawChart(p){
     ctx.fillText(fmt(v), W - PR + 6, y);
   }
 
-  // Donchian 通道
-  ctx.strokeStyle = "rgba(88,166,255,.55)"; ctx.lineWidth = 1;
+  // 底部部位帶
+  const by = H - PB + 8;
+  for(let i = s; i <= e; i++){
+    const v = pos[i] || 0;
+    ctx.fillStyle = v > 0.02 ? "rgba(46,204,113," + Math.min(0.85, 0.18 + Math.abs(v) * 0.7) + ")"
+                  : v < -0.02 ? "rgba(231,76,60," + Math.min(0.85, 0.18 + Math.abs(v) * 0.7) + ")"
+                  : "rgba(140,140,140,0.16)";
+    ctx.fillRect(X(i) - cw / 2, by, Math.max(1, cw + 0.5), BAND);
+  }
+  ctx.strokeStyle = "rgba(120,144,156,.28)"; ctx.lineWidth = 1;
+  ctx.strokeRect(PL, by, W - PL - PR, BAND);
+
+  // 價格線
+  ctx.strokeStyle = "#c9a227"; ctx.lineWidth = 1.4;
   ctx.beginPath();
-  let started = false;
-  for(let i = st; i <= e; i++){
-    if(R.hband[i] == null) continue;
-    const x = X(i), y = Y(R.hband[i]);
-    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
+  for(let i = s; i <= e; i++){
+    const x = X(i), y = Y(bars[i].c);
+    if(i === s) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
-  ctx.strokeStyle = "rgba(255,120,120,.4)";
-  ctx.beginPath(); started = false;
-  for(let i = st; i <= e; i++){
-    if(R.lband[i] == null) continue;
-    const x = X(i), y = Y(R.lband[i]);
-    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
-  }
-  ctx.stroke();
-  // 出場線（近 exitN 根低點）
-  ctx.strokeStyle = "rgba(255,200,80,.45)"; ctx.setLineDash([4,3]);
-  ctx.beginPath(); started = false;
-  for(let i = st; i <= e; i++){
-    if(R.filt[i] == null) continue;
-    const x = X(i), y = Y(R.filt[i]);
-    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
-  }
-  ctx.stroke(); ctx.setLineDash([]);
 
-  /* K 線：顏色跟著**部位**走（紅持倉多／綠持倉空／灰空手），不是跟著漲跌走。
-     每根寬度小於 2px 時只畫影線——那個尺度下再畫實體方塊，相鄰 K 棒會連成一整片色塊，
-     看起來就是「太粗」。九百根 11 分 K 擠在一張圖裡正是這種情況。 */
-  const thin = cw < 2;
-  const bw = Math.max(1, Math.min(3, cw * 0.5));
-  ctx.lineWidth = thin ? 0.7 : 1;
-  for(let i = st; i <= e; i++){
-    const b = bars[i], x = X(i);
-    const v = R.pos[i] || 0;
-    ctx.strokeStyle = ctx.fillStyle = v > 0.001 ? C_LONG : (v < -0.001 ? C_SHORT : C_FLAT);
-    ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
-    if(thin) continue;
-    const y1 = Y(Math.max(b.o, b.c)), y2 = Y(Math.min(b.o, b.c));
-    // 空心＝下跌、實心＝上漲，讓漲跌資訊不會因為改用部位配色而消失
-    if(b.c >= b.o) ctx.fillRect(x - bw/2, y1, bw, Math.max(1, y2 - y1));
-    else ctx.strokeRect(x - bw/2, y1, bw, Math.max(1, y2 - y1));
-  }
-  ctx.lineWidth = 1;
-
-  // 平均成本線（持倉期間才有）
-  ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.setLineDash([2,3]); ctx.lineWidth = 1;
-  ctx.beginPath(); started = false;
-  for(let i = st; i <= e; i++){
-    if(R.avg[i] == null){ started = false; continue; }
-    const x = X(i), y = Y(R.avg[i]);
-    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
-  }
-  ctx.stroke(); ctx.setLineDash([]);
-
-  // 進出場標記
-  for(const r of R.rows){
-    if(r.i < st || r.i > e) continue;
-    const x = X(r.i);
-    if(r.dir === -2){                                                // 進場做空（橙）
-      ctx.fillStyle = C_SHORT;
-      const y = Y(bars[r.i].h) - 8;
-      ctx.beginPath(); ctx.moveTo(x, y+7); ctx.lineTo(x-4, y); ctx.lineTo(x+4, y); ctx.fill();
-    }else if(r.dir > 0){
-      ctx.fillStyle = r.dir === 1 ? C_LONG : "rgba(255,59,59,.6)";   // 進場做多／加碼
-      const y = Y(bars[r.i].l) + 8;
-      ctx.beginPath(); ctx.moveTo(x, y-7); ctx.lineTo(x-4, y); ctx.lineTo(x+4, y); ctx.fill();
-    }else{
-      ctx.fillStyle = C_FLAT;                                        // 出場
-      const y = Y(bars[r.i].h) - 8;
-      ctx.beginPath(); ctx.moveTo(x, y+7); ctx.lineTo(x-4, y); ctx.lineTo(x+4, y); ctx.fill();
-    }
-  }
-
+  // 首尾日期與圖例
+  ctx.fillStyle = "#5f6b7d"; ctx.font = "11px system-ui";
   ctx.textBaseline = "top";
-  ctx.fillStyle = "#5f6b7d";
-  ctx.fillText(barTime(bars[st].t, p.tf), PL + 2, H - 13);
+  ctx.fillText(barTime(bars[s].t, p.tf), PL + 2, H - 14);
   const endTxt = barTime(bars[e].t, p.tf), tw = ctx.measureText(endTxt).width;
-  ctx.fillText(endTxt, W - PR - tw - 2, H - 13);
+  ctx.fillText(endTxt, W - PR - tw - 2, H - 14);
+  ctx.fillStyle = "rgba(255,255,255,.42)";
+  ctx.fillText("部位帶：綠＝持倉（深淺就是部位大小）／灰＝空手・這套只做多", PL + 2, by - 15);
 }
 
+
+function drawChart(p){
+  if(p.type === "bd") return drawChartBD(p);
+  const bars = p.bars, R = p.R;
+  const cv = $("cv" + p.k);
+  const {ctx, W, H} = setupCanvas(cv);
+  ctx.clearRect(0,0,W,H);
+
+  // 可視區間由該策略自己的 ZOOM 決定：span = 顯示幾根，off = 右邊界離最新一根幾根
+  const total = bars.length;
+  const Z = p.ZOOM;
+  const show = Z.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(Z.span)));
+  const off  = Math.max(0, Math.min(total - show, Math.round(Z.off)));
+  const s = total - off - show;
+  const e = s + show;                       // 不含
+  const PL = 8, PR = 54, PT = 12, PB = 24;
+  // 最後一根 K 棒不要貼著價格軸，右邊留一段空白比較好讀，也留位置給現價標籤
+  const RGAP = Math.round(Math.min(46, Math.max(20, (W - PL - PR) * 0.07)));
+  const cw = W - PL - PR - RGAP, ch = H - PT - PB;
+
+  let lo = Infinity, hi = -Infinity;
+  for(let i=s;i<e;i++){
+    lo = Math.min(lo, bars[i].l, R.lband[i]);
+    hi = Math.max(hi, bars[i].h, R.hband[i]);
+  }
+  const pad = (hi-lo)*0.06; lo -= pad; hi += pad;
+
+  const X = i => PL + (i - s) / (show - 1) * cw;
+  const Y = p => PT + (hi - p) / (hi - lo) * ch;
+
+  p.VIEW = {s, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
+
+  // 格線 + 價格軸
+  ctx.font = "11px ui-monospace,monospace";
+  ctx.textBaseline = "middle";
+  for(let g=0; g<=5; g++){
+    const p = lo + (hi-lo)*g/5, y = Y(p);
+    ctx.strokeStyle = "rgba(43,52,68,.55)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(PL,y); ctx.lineTo(W-PR,y); ctx.stroke();
+    ctx.fillStyle = "#5f6b7d"; ctx.textAlign = "right";
+    ctx.fillText(p.toLocaleString("en-US",{maximumFractionDigits:1}), W-3, y);
+  }
+  // 時間軸：窄螢幕改成只標日期，並依可用寬度決定標幾格，避免文字疊在一起
+  ctx.textBaseline = "top";
+  const daily = p.tf === "1d";
+  const dateOnly = cw < 640;
+  const labFn = daily ? dayText : dateOnly ? (t=>tsText(t).slice(0,5)) : tsText;
+  const labW  = daily ? 66 : dateOnly ? 52 : 96;
+  const nLab  = Math.max(2, Math.min(7, Math.floor(cw / labW)));
+  const step  = Math.max(1, Math.ceil(show / nLab));
+  let lastRight = -1e9;                       // 量過寬度才畫，硬性保證不疊字
+  for(let i=s; i<e; i+=step){
+    const x = X(i);
+    ctx.strokeStyle = "rgba(43,52,68,.35)";
+    ctx.beginPath(); ctx.moveTo(x,PT); ctx.lineTo(x,PT+ch); ctx.stroke();
+
+    const txt = labFn(bars[i].t);
+    const w = ctx.measureText(txt).width;
+    const align = x < PL + w/2 ? "left" : (x > W-PR - w/2 ? "right" : "center");
+    const left = align === "left" ? x : align === "right" ? x - w : x - w/2;
+    if(left < lastRight + 12) continue;
+    ctx.fillStyle = "#5f6b7d"; ctx.textAlign = align;
+    ctx.fillText(txt, x, PT+ch+6);
+    lastRight = left + w;
+  }
+  ctx.textAlign = "left";
+
+  // 通道填色
+  ctx.beginPath();
+  for(let i=s;i<e;i++){ const x=X(i),y=Y(R.hband[i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  for(let i=e-1;i>=s;i--){ ctx.lineTo(X(i), Y(R.lband[i])); }
+  ctx.closePath();
+  ctx.fillStyle = "rgba(120,144,156,.07)"; ctx.fill();
+
+  // 上下軌
+  ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+  for(const band of ["hband","lband"]){
+    ctx.beginPath();
+    for(let i=s;i<e;i++){ const x=X(i),y=Y(R[band][i]); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+    ctx.strokeStyle = "rgba(120,144,156,.5)"; ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // 價格線
+  ctx.beginPath();
+  for(let i=s;i<e;i++){ const x=X(i),y=Y(bars[i].c); i===s?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+  ctx.strokeStyle = "#c9d1d9"; ctx.lineWidth = 1.1; ctx.stroke();
+
+  // 過濾線（依方向分段上色）
+  ctx.lineWidth = 2.2; ctx.lineJoin = "round";
+  for(let i=s+1;i<e;i++){
+    const col = R.upward[i]>0 ? C_UP : R.downward[i]>0 ? C_DN : "#78909c";
+    ctx.beginPath();
+    ctx.moveTo(X(i-1), Y(R.filt[i-1]));
+    ctx.lineTo(X(i), Y(R.filt[i]));
+    ctx.strokeStyle = col; ctx.stroke();
+  }
+
+  // 訊號箭頭
+  for(const r of R.rows){
+    if(r.i < s || r.i >= e) continue;
+    const x = X(r.i), b = bars[r.i];
+    const up = r.dir > 0;
+    const y = up ? Y(b.l) + 13 : Y(b.h) - 13;
+    ctx.beginPath();
+    if(up){ ctx.moveTo(x,y-8); ctx.lineTo(x-6,y+3); ctx.lineTo(x+6,y+3); }
+    else  { ctx.moveTo(x,y+8); ctx.lineTo(x-6,y-3); ctx.lineTo(x+6,y-3); }
+    ctx.closePath();
+    ctx.fillStyle = up ? C_UP : C_DN; ctx.fill();
+    ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  drawLive(p);
+}
+
+/* 即時現價線：畫在另一張疊圖上，每秒更新只重畫這一條，不動主圖 */
 function drawLive(p){
   const cv = $("lv" + p.k);
   if(!cv || !p.VIEW) return;
@@ -1824,10 +1862,11 @@ PANELS.forEach(p=>{
     tip.style.display = "block";
     tip.textContent =
       `${barTime(b.t, p.tf)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
-      `進場線 ${R.hband[i]!=null?fmt(R.hband[i]):"—"}\n`
-      + `出場線 ${R.filt[i]!=null?fmt(R.filt[i]):"—"}\n`
-      + `部位 ${(R.pos[i]*100).toFixed(0)}%`
-      + (R.avg[i]!=null ? `　均價 ${fmt(R.avg[i])}` : "") + `\n` +
+      (p.type === "bd"
+        ? `動量廣度 ${R.breadth[i]==null?"—":(R.breadth[i]*100).toFixed(0)+"%"}\n`
+          + `新高密度 ${R.density[i]==null?"—":(R.density[i]*100).toFixed(0)+"%"}\n`
+          + `目標部位 ${(R.pos[i]>=0?"+":"")+(R.pos[i]*100).toFixed(0)}%\n`
+        : `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n`) +
       `量 ${fmt(b.v,1)}`;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.min(r.width - tw - 6, Math.max(6, x + 14)) + "px";
@@ -1840,11 +1879,8 @@ PANELS.forEach(p=>{
 let timer = null, busy = false;
 
 function setStatus(cls, txt){
-  // 狀態列已移除。這裡留成 no-op 而不是刪掉呼叫端：下載進度、錯誤狀態等
-  // 十幾處都會呼叫它，改成容錯比逐一拔掉安全。
-  const d = $("dot"), t = $("srcTxt");
-  if(d) d.className = "status-dot " + cls;
-  if(t) t.textContent = txt;
+  $("dot").className = "status-dot " + cls;
+  $("srcTxt").textContent = txt;
 }
 function showErr(msg){
   const e = $("errBox");
@@ -1859,8 +1895,8 @@ async function run(refetch = true){
   try{
     SYMBOL = $("feed").value;
     // 第三策略的週期是策略規格的一部分（固定日線），沒有對應的選單元素。
-    // 新增面板時，凡是 $("xxx"+p.k) 的取值都要確認元素存在，否則整個 run() 會中斷。
-    PANELS.forEach(p=>{ p.tf = $("tf" + p.k).value; });
+    // 照舊去讀 $("tfC") 會拿到 null，整個 run() 會在第一步就中斷。
+    PANELS.forEach(p=>{ if(p.type !== "bd") p.tf = $("tf" + p.k).value; });
 
     // 時段過濾會砍掉約 32%，所以多抓一些，確保過濾後根數足夠
     PANELS.forEach(p=>{
@@ -1880,18 +1916,19 @@ async function run(refetch = true){
     const spot = refetch ? await fetchSpot() : LASTSPOT;
     LASTSPOT = spot;
 
-    // 重抓之後把縮放歸回預設。只在 refetch 時做——自動重算走 run(false)，
-    // 不會把使用者手動縮放的視窗踢掉。
-    if(refetch) PANELS.forEach(p=>{ p.ZOOM = {span: viewBars(p), off: 0}; });
-
     for(const p of PANELS){
       p.P = readParams(p);
       // 「剔除休市」是為分鐘線設計的：日線一根就是一整天，套上去只會把樣本打散
-      let b = applySession(p.raw);
+      let b = p.type === "bd" ? p.raw.slice() : applySession(p.raw);
       if(b.length > p.limit) b = b.slice(-p.limit);
       p.bars = b;
-      p.R  = compute(b, p.P);
-      p.BT = backtest(b, p.R, p.P);
+      if(p.type === "bd"){
+        p.R  = computeBD(b);
+        p.BT = backtestScaled(b, p.R, p.P);
+      }else{
+        p.R  = compute(b, p.P);
+        p.BT = backtest(b, p.R, p.P);
+      }
 
       renderSigBox(p);
       renderSignals(p);
@@ -1907,15 +1944,14 @@ async function run(refetch = true){
       + `${p.BT.winRate!=null?p.BT.winRate.toFixed(1)+"%":"—"}・淨 ${pct(p.BT.net)}`;
     $("statTag").textContent = PANELS.map(line).join("　│　");
     $("sigTag").textContent = PANELS.map(p =>
-      `${p.label} ${p.BT.total} 筆交易`).join("　│　")
-      + `・只做多・不做空・訊號反轉或停損才出場`;
+      `${p.label} ${p.R.rows.length} 筆`).join("　│　") + `・共 ${PANELS[0].bars.length} 根 K 線`;
 
+    const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[PANELS[0].P.srcMode];
     $("paramTag").textContent =
-      PANELS.map(p => `${tfLabel(p.tf)} ${({long:"只做多",short:"只做空",both:"多空"})[p.P.mode]}/`
-                    + `${p.bars.length.toLocaleString()}根/`
-                    + (p.P.sigType === "rf" ? `RF ${p.P.per}／${p.P.mult}/`
-                                            : `Donch回看${p.P.lookH}時/`)
-                    + `${p.P.segs}段/step${p.P.stepAtr}/stop${p.P.stopAtr}`).join("・")
+      `${srcTxt}・`
+      + PANELS.map(p => p.type === "bd"
+          ? `${tfLabel(p.tf)} ${p.bars.length.toLocaleString()}根/廣度×密度(1,3,6,12月・252日)`
+          : `${tfLabel(p.tf)} ${p.bars.length.toLocaleString()}根/週期${p.P.per}/乘數${p.P.mult}`).join("・")
       + `・成本 ${PANELS[0].P.cost}%`
       + ($("session").checked ? "・剔除休市" : "・24/7");
 
@@ -2031,8 +2067,7 @@ function checkAlarm(p){
   if(seen === key) return;
   try{ localStorage.setItem(slot, key); }catch(e){}
 
-  fireAlarm(sig.dir > 0 ? 1 : -1, sig.price, barTime(bars[sig.i].t, p.tf),
-            confirmed, tfLabel(p.tf) + "・" + (sig.why || ""));
+  fireAlarm(sig.dir, bars[sig.i].c, barTime(bars[sig.i].t, p.tf), confirmed, tfLabel(p.tf));
 }
 
 $("errBox").addEventListener("click", ()=> showErr(null));
@@ -2081,10 +2116,7 @@ $("alarmPerm").addEventListener("click", async ()=>{
 /* ============ 圖表縮放與平移 ============ */
 function zoomState(p){
   const total = p.bars.length, Z = p.ZOOM;
-  // span 為 null 時回退到「顯示根數」而不是全部——先前 11 分卡在 null，
-  // 畫了整整 153 天，跟設定的 12,000 根（92 天）對不上。
-  const want = Z.span == null ? viewBars(p) : Z.span;
-  const span = Math.max(MINBARS, Math.min(total, Math.round(want)));
+  const span = Z.span == null ? total : Math.max(MINBARS, Math.min(total, Math.round(Z.span)));
   const off  = Math.max(0, Math.min(total - span, Math.round(Z.off)));
   return {total, span, off, s: total - off - span};
 }
@@ -2098,7 +2130,7 @@ function zoomTo(p, newSpan, anchor01){
   const ns = Math.max(MINBARS, Math.min(total, Math.round(newSpan)));
   let s1 = Math.round(at - anchor01 * (ns - 1));
   s1 = Math.max(0, Math.min(total - ns, s1));
-  p.ZOOM = {span: ns, off: total - ns - s1};
+  p.ZOOM = {span: ns >= total ? null : ns, off: total - ns - s1};
   redrawChart(p);
 }
 function zoomBy(p, f, anchor01 = 0.5){ zoomTo(p, zoomState(p).span * f, anchor01); }
@@ -2208,50 +2240,41 @@ document.querySelectorAll("[data-close]").forEach(el=> el.addEventListener("clic
 document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); });
 
 /* 事件綁定 */
-["sigAType","perA","multA","modeA","lookA","segsA","stepA","stopA",
- "sigBType","perB","multB","modeB","lookB","segsB","stepB","stopB","cost","session"].forEach(id=>{
+["srcSel","perA","multA","perB","multB","cost","session","longOnlyA","longOnlyB"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(false));
 });
-["viewA","viewB"].forEach(id=>{
+["viewA","viewB","viewC"].forEach(id=>{
   $(id).addEventListener("change", ()=>{
     const p = PAN(id.slice(-1));
     p.ZOOM = {span: viewBars(p), off: 0};
     redrawChart(p);
   });
 });
-["feed","tfA","tfB","barsA","barsB"].forEach(id=>{
-  $(id).addEventListener("change", ()=>{ syncGroupLabels(); run(true); });
+["feed","tfA","tfB","barsA","barsB","barsC"].forEach(id=>{
+  $(id).addEventListener("change", ()=> run(true));
 });
 $("refresh").addEventListener("click", ()=> run(true));
 
-/* 預設值 = 2026-09-13 掃描的冠軍組合，不是隨手填的。
-
-   掃描方式：450 組（回看 × 段數 × step × stop），先篩掉筆數<10、集中度>60%、
-   最長連虧>8，再用報酬÷回撤排序。用報酬排序會選到單純曝險大的組合——
-   這個專案先前每一次都栽在這裡。
-
-   4 小時 回看1200時／3段／step1.5／stop3
-     +50.2%／回撤 6.4%（報÷撤 7.90）・14 筆・勝率 71%・持倉 61.8 天
-     六年沒有一年虧損；成本拉到 0.5%／單趟仍有 7.13；集中度 24%。
-     唯一的過擬合疑慮是回看那一軸是窄峰：800 時掉到 4.11、1600 時掉到 4.18。
-
-   11 分 回看800時／3段／step1.0／stop4
-     +35.0%／回撤 11.1%（報÷撤 3.15）・28 筆・勝率 43%・持倉 17.5 天
-     明顯不如 4 小時：集中度 40%、最長連虧 5 筆，而且 stop 軸是單點尖峰
-     （挪一格從 3.15 掉到 2.4）。放在這裡是為了對照，不是推薦。
-
-   對照買進持有 +120.0%／回撤 29.0%（4.14）。兩套都贏在回撤、輸在報酬——
-   4 小時年化約 7.2%，全抱是 14%。這是保險不是收益。
-
-   成本 0.115%／單趟 = Binance VIP0 taker 0.10% + $1 萬單滑價 0.013%（實測簿深）。 */
-const DEFAULTS = {feed:"PAXGUSDT", tfA:"4h", tfB:"11m",
-                  barsA:"15000", barsB:"20000",
+// 預設值（成本 0.115%／單趟）
+//   11 分 300/23：223 天驗證過的組合（V1.06 重掃 2537 組）。淨 +46.0% 複利、17 筆、回撤 6.4%。
+//     per 240~480 在 mult=23 上都是 +40~47%，位在高原正中央而非單點運氣。
+//   15 分 100/23（V1.08 取代日線 25/8）：使用者 TradingView 的原始參數，不是在驗證資料上挑的，
+//     所以 6 年 PAXG 等於一次樣本外檢驗。2020-09~2026-09：128 筆、獲利因子 1.62，
+//     逐根複利 +102%／回撤 19.1%，全抱 +126%／29.7%，年化÷回撤 0.65 對 0.49（只做多 0.75）。
+//     per 70~150 × mult 20~23 全部 +63~+100% 單利：per 是高原、mult 是窄脊，不要動 mult。
+//     弱點：前三筆占淨利 73%；2023~2025 多頭逐年落後全抱，贏在 2021 與 2026。
+//     根數 50,000（約兩年）是載入時間的折衷：抓滿 6 年要兩百多個請求。
+//   日線 25/8（V1.07）被換掉的原因：三段第一段是虧的，且沒贏過全抱，只能當大方向參考。
+//   2 分為何拿掉：它的參數只在 223 天這一段跌勢上驗證過。2026-09-11 用 6 年 PAXG 與
+//     2 年 GC=F 掃 1/2/4 小時與日線，及格的參數零星出現、換個資料源就不重現。
+//   成本 0.115% = Binance VIP0 taker 0.10% + $1 萬單滑價 0.013%（實測簿深）。
+//     PAXG 不在零手續費促銷名單內。有付 BNB 抵手續費者改 0.09%。
+const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"15m",
+                  barsA:"20000", barsB:"50000", srcSel:"hl2",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
-                  sigAType:"donchian", perA:200, multA:23,
-                  sigBType:"rf",       perB:200, multB:23,
-                  modeA:"long", lookA:1200, segsA:3, stepA:1.5, stopA:3,
-                  modeB:"both", lookB:800,  segsB:3, stepB:1.0, stopB:4,
-                  cost:0.115, session:false};
+                  barsC:"2000", viewC:VIEW_DEFAULT.C,
+                  perA:300, multA:23, perB:100, multB:23, cost:0.115, session:true,
+                  longOnlyA:false, longOnlyB:true};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
                    || $("tfA").value   !== DEFAULTS.tfA
@@ -2260,23 +2283,26 @@ $("preset").addEventListener("click", ()=>{
                    || $("barsB").value !== DEFAULTS.barsB
                    || $("session").checked !== DEFAULTS.session;
   $("feed").value = DEFAULTS.feed;
-  $("tfA").value = DEFAULTS.tfA;   $("tfB").value = DEFAULTS.tfB;
   $("barsA").value = DEFAULTS.barsA; $("barsB").value = DEFAULTS.barsB;
-  $("viewA").value = DEFAULTS.viewA; $("viewB").value = DEFAULTS.viewB;
-  for(const k of ["A","B"]){
-    $("sig"+k+"Type").value = DEFAULTS["sig"+k+"Type"];
-    $("per"+k).value = DEFAULTS["per"+k];
-    $("mult"+k).value = DEFAULTS["mult"+k];
-    $("mode"+k).value = DEFAULTS["mode"+k];
-    $("look"+k).value = DEFAULTS["look"+k];
-    $("segs"+k).value = DEFAULTS["segs"+k];
-    $("step"+k).value = DEFAULTS["step"+k];
-    $("stop"+k).value = DEFAULTS["stop"+k];
-  }
-  $("cost").value = DEFAULTS.cost;
-  $("session").checked = DEFAULTS.session;
+  $("barsC").value = DEFAULTS.barsC; $("viewC").value = DEFAULTS.viewC;
+  $("tfA").value = DEFAULTS.tfA;   $("tfB").value = DEFAULTS.tfB;
+  $("srcSel").value = DEFAULTS.srcSel;
+  $("perA").value = DEFAULTS.perA; $("multA").value = DEFAULTS.multA;
+  $("perB").value = DEFAULTS.perB; $("multB").value = DEFAULTS.multB;
+  $("cost").value = DEFAULTS.cost; $("session").checked = DEFAULTS.session;
+  $("longOnlyA").checked = DEFAULTS.longOnlyA;
+  $("longOnlyB").checked = DEFAULTS.longOnlyB;
+  $("viewA").value = VIEW_DEFAULT.A; $("viewB").value = VIEW_DEFAULT.B;
   PANELS.forEach(p=>{ p.ZOOM = {span: viewBars(p), off: 0}; });
   run(needRefetch);
+});
+
+// 你的原始參數（取樣週期 100），用來對照
+$("orig").addEventListener("click", ()=>{
+  $("srcSel").value = "hl2";
+  $("perA").value = 100; $("multA").value = 23;
+  $("perB").value = 100; $("multB").value = 23;
+  run(false);
 });
 
 /* ---- 自動重算：只補最後幾根 K 線，指標與統計在本機重算 ----
@@ -2341,44 +2367,9 @@ window.addEventListener("resize", ()=>{
   }, 180);
 });
 
-/* 開頁時明確把控制項設回 DEFAULTS。
-   不做這件事的話，瀏覽器會在重新整理時「還原」使用者上次選過的表單值，
-   蓋過 HTML 的 selected/value——實測會出現方向變成「多空都做」、
-   下方根數變成 50,000 的情況，而且時有時無，很難察覺。
-   要保留使用者設定的話得用 localStorage 明確存讀，那是另一件事。 */
-/* 分組標題要跟著週期跑。寫死「4 小時」的話，使用者把上方改成日線之後
-   標題就會騙人——參數面板上唯一能辨識這組參數屬於誰的東西就是它。 */
-function syncGroupLabels(){
-  for(const k of ["A","B"]){
-    const el = $("grp" + k);
-    if(el) el.textContent = tfLabel($("tf" + k).value) + " 策略";
-  }
-}
-
-function applyDefaults(){
-  $("feed").value = DEFAULTS.feed;
-  $("tfA").value = DEFAULTS.tfA;   $("tfB").value = DEFAULTS.tfB;
-  $("barsA").value = DEFAULTS.barsA; $("barsB").value = DEFAULTS.barsB;
-  $("viewA").value = DEFAULTS.viewA; $("viewB").value = DEFAULTS.viewB;
-  for(const k of ["A","B"]){
-    $("sig"+k+"Type").value = DEFAULTS["sig"+k+"Type"];
-    $("per"+k).value = DEFAULTS["per"+k];
-    $("mult"+k).value = DEFAULTS["mult"+k];
-    $("mode"+k).value = DEFAULTS["mode"+k];
-    $("look"+k).value = DEFAULTS["look"+k];
-    $("segs"+k).value = DEFAULTS["segs"+k];
-    $("step"+k).value = DEFAULTS["step"+k];
-    $("stop"+k).value = DEFAULTS["stop"+k];
-  }
-  $("cost").value = DEFAULTS.cost;
-  $("session").checked = DEFAULTS.session;
-  syncGroupLabels();
-}
-applyDefaults();
-
 run(true).then(()=>{ resetTimer(); resetLive(); });
 $("verTitle").textContent = VERSION;
-$("verTag").textContent = VERSION + "・只做多・逆勢累積";
+$("verTag").textContent = VERSION + "・雙策略單頁版";
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){
   navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
