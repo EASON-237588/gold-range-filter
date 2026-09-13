@@ -392,31 +392,6 @@
   </div>
 </section>
 
-<section class="strat">
-  <div class="sigrow" id="sigC">
-    <div class="sigcap dir">
-      <div class="sigline"><span class="tf">日線</span></div>
-      <div class="v mid">—</div>
-    </div>
-    <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
-    <div class="sigcap ret">
-      <div class="sigline"><span class="k">淨報酬</span></div>
-      <div class="v mid">—</div>
-    </div>
-  </div>
-  <div class="chartcard">
-    <div class="chartbox" id="chartBoxC">
-      <canvas id="cvC"></canvas><canvas class="lv" id="lvC"></canvas>
-      <div class="tip" id="tipC"></div>
-      <div class="zoombar">
-        <button data-p="C" data-z="in" title="放大">＋</button>
-        <button data-p="C" data-z="out" title="縮小">－</button>
-        <button data-p="C" data-z="reset" title="還原全圖">⤢</button>
-      </div>
-    </div>
-  </div>
-</section>
-
 <nav class="tabbar">
   <button class="tab" data-sheet="shParams">參數設定</button>
   <button class="tab" data-sheet="shSignals">訊號歷史</button>
@@ -535,17 +510,6 @@
   <label>下方範圍乘數 <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
   <label class="chk" title="空方訊號只用來平多，不建立空單。十年日線與 2.4 年小時線兩個樣本的空單都是負貢獻，且讓最大回撤翻倍（4.6%→10.1%）；15 分 100/23 的年化÷回撤 0.65→0.75"><input type="checkbox" id="longOnlyB" checked> 下方只做多</label>
   <div class="sep"></div>
-  <label title="第三策略固定走日線，時間尺度不可調（1/3/6/12 個月動量與 252 日新高密度）">第三策略根數
-    <select id="barsC">
-      <option value="1000">1,000</option>
-      <option value="2000" selected>2,000</option>
-      <option value="3000">3,000</option>
-      <option value="5000">5,000</option>
-    </select>
-  </label>
-  <label title="這套策略的圖預設畫最近幾根">第三顯示根數
-    <input type="number" id="viewC" value="500" min="40" step="50"></label>
-  <div class="sep"></div>
   <label title="手續費＋點差＋滑價，單趟。來回扣兩次。">單趟成本%
     <input type="number" id="cost" value="0.115" step="0.01" min="0"></label>
   <div class="sep"></div>
@@ -594,12 +558,6 @@
           <th>時間</th><th>方向</th><th>訊號價</th><th>過濾線</th><th>後續變動</th>
         </tr></thead><tbody id="sigBodyB"></tbody></table>
       </div>
-      <h4 class="stratHd" id="sigHdC">第三策略</h4>
-      <div class="tblwrap">
-        <table><thead><tr>
-          <th>時間</th><th>方向</th><th>訊號價</th><th>目標部位</th><th>後續變動</th>
-        </tr></thead><tbody id="sigBodyC"></tbody></table>
-      </div>
     </div>
   </div>
 </div>
@@ -621,12 +579,6 @@
       <div style="margin-top:12px">
         <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
         <div class="eqbox"><canvas id="eqB"></canvas></div>
-      </div>
-      <h4 class="stratHd" id="statHdC">第三策略</h4>
-      <div class="stats" id="statsC"></div>
-      <div style="margin-top:12px">
-        <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（逐根複利、部位連續，回撤含持倉浮動虧損）</span></div>
-        <div class="eqbox"><canvas id="eqC"></canvas></div>
       </div>
     </div>
   </div>
@@ -680,28 +632,7 @@
     <div class="sheet-b">
       <div class="notes">
         <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。最上面是現價，
-          下面三張圖是三套策略（上方 11 分、中間 15 分、最下面日線），最底下五個鈕點開才是細節。</p>
-
-        <div class="warn"><b>第三張圖（日線）跟上面兩套是不同種東西。</b><br>
-          上面兩套是 Range Filter：看通道突破，全額進出，會做空。
-          第三套是<b>廣度 × 密度</b>：不看突破，看「跌勢有多廣、持續多久」——
-          動量廣度是 1/3/6/12 個月動量有幾個為正，新高密度是過去一年有多少比例的日子
-          收在年度高點 95% 以上，兩者相乘當作部位比例。<br>
-          三個關鍵差別：<b>(1) 部位是連續的</b>，0% 到 100% 分級減碼，不是全有全無，
-          所以底下那條部位帶顏色越深代表倉位越重。<b>(2) 只做多</b>，指標轉弱是減碼到空手，
-          不會反手做空。<b>(3) 月頻</b>，只有每月最後一個交易日才會改變部位，
-          改成每日檢查會被均線附近的來回穿越巴到完全變樣。<br>
-          <b>沒有參數可調</b>，時間尺度是策略規格的一部分，開放調整就只是換個方式過擬合。</div>
-
-        <div class="warn"><b>但它不是拿來賺更多的。</b>PAXG 日線這段樣本（暖機後約 4.1 年）：
-          策略 +40.0%／回撤 9.3%，買進持有 +143.9%／回撤 28.1%——
-          <b>報酬只有全抱的三成，回撤也只有三分之一</b>，風險調整後（報酬÷回撤 4.29 對 5.13）
-          其實還小輸。這跟先前用 GC=F 26 年、GLD 21.8 年做過的七種策略測試結論一致：
-          擇時在黃金上唯一穩定成立的能力是<b>降低回撤</b>，報酬是拿來換的，沒有免費午餐。<br>
-          而且這段 PAXG 樣本裡<b>沒有任何一次大空頭</b>（2020 年後才有資料），
-          所以它真正的價值——2011-2015 那種 -43.8% 跌勢裡的保護力——在這個面板上是驗證不到的。
-          請把它當<b>風險狀態指示</b>看：部位帶轉灰代表這套指標認為趨勢結構在轉弱，
-          不是叫你照它的報酬率去配置。</div>
+          下面兩張圖是兩套策略（上方 11 分、下方 15 分），最底下五個鈕點開才是細節。</p>
 
         <div class="warn"><b>更新分三層，成本差很多。</b><br>
           <b>1. 現價每 1 秒</b>——一支報價 API，只改現價、代幣溢價、訊號後至今、持倉浮動這幾個數字，
@@ -774,7 +705,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V1.11";
+const VERSION = "V1.10";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -915,118 +846,6 @@ function compute(bars, P){
           sig, rows: keptRows, warm, dropped, rawCount: rows.length};
 }
 
-/* ============ 廣度 × 密度（第三策略・日線） ============
-   跟 Range Filter 完全不同的一類：不看通道突破，看「跌勢有多廣、多久」。
-     動量廣度 = 1/3/6/12 個月動量有幾個為正（一般回檔只打掉短天期，趨勢反轉會全部翻負）
-     新高密度 = 過去一年有多少比例的日子收在年度高點 95% 以上（多頭頻繁創高、空頭幾乎不創）
-   兩者相乘直接當部位比例：1 = 滿倉做多、0 = 完全空手，中間是分級減碼。
-   **不做空。** research/new_indicators.py 的原始定義就是 0~1，移植時一度寫成
-   ×2-1 映射到 -1~+1，等於指標轉弱就自動翻空，結果 PAXG 五年跑出 -27%／回撤 44%。
-   那既不是原策略，也違反已驗證的結論：做空在黃金上系統性虧錢，且必然推高回撤。
-   部位是連續的，所以回測不能用上面那套全額進出，要用 backtestScaled。
-
-   密度要除以自身的歷史中位數做正規化，而中位數**只能用到當下為止的歷史**——
-   用整份樣本算會把未來資訊洩進回測，實盤也算不出那個除數。 */
-const BD_MONTHS = [1, 3, 6, 12], BD_WIN = 252, BD_NEAR = 0.95, BD_MINHIST = 252;
-
-function monthEnds(bars){
-  const set = new Set();
-  for(let i=0;i<bars.length;i++){
-    const a = new Date(bars[i].t), b = i+1<bars.length ? new Date(bars[i+1].t) : null;
-    if(!b || a.getUTCMonth() !== b.getUTCMonth() || a.getUTCFullYear() !== b.getUTCFullYear()) set.add(i);
-  }
-  return set;
-}
-
-function computeBD(bars){
-  const n = bars.length, C = bars.map(b=>b.c);
-  const lbs = BD_MONTHS.map(m=>Math.round(m*21));
-  const maxLb = Math.max(...lbs);
-
-  const breadth = new Array(n).fill(null);
-  for(let i=maxLb;i<n;i++){
-    let k=0; for(const L of lbs) if(C[i] > C[i-L]) k++;
-    breadth[i] = k/lbs.length;
-  }
-
-  // 新高密度 + 只用歷史的中位數正規化
-  const raw = new Array(n).fill(null), hist = [], density = new Array(n).fill(null);
-  for(let i=BD_WIN;i<n;i++){
-    let hi=-Infinity; for(let j=i-BD_WIN;j<=i;j++) if(C[j]>hi) hi=C[j];
-    let cnt=0;   for(let j=i-BD_WIN;j<=i;j++) if(C[j] >= hi*BD_NEAR) cnt++;
-    raw[i] = cnt/(BD_WIN+1);
-    let lo=0, hiIdx=hist.length;
-    while(lo<hiIdx){ const mid=(lo+hiIdx)>>1; if(hist[mid]<raw[i]) lo=mid+1; else hiIdx=mid; }
-    hist.splice(lo,0,raw[i]);
-    if(hist.length < BD_MINHIST){ density[i]=0; continue; }
-    const med = hist[hist.length>>1];
-    density[i] = med>0 ? Math.max(0, Math.min(1, raw[i]/(med*2))) : 0;
-  }
-
-  // 月頻檢查：只有月底能改變部位
-  const me = monthEnds(bars), pos = new Array(n).fill(0);
-  let cur = 0;
-  for(let i=0;i<n;i++){
-    if(me.has(i) && breadth[i]!=null && density[i]!=null) cur = breadth[i]*density[i];
-    pos[i] = cur;
-  }
-
-  // 相容 Range Filter 的資料結構：方向改變時給一個訊號，訊號歷史與警報才有東西可讀
-  // 部位只在 0 ~ 1 之間，所以訊號是「進場／出場」而不是「翻多／翻空」。
-  // dir=-1 在這套策略代表回到空手，不是建立空單。
-  const sig = new Array(n).fill(0), rows = [];
-  let prevIn = 0;
-  for(let i=0;i<n;i++){
-    const inMkt = pos[i] > 0.02 ? 1 : 0;
-    if(inMkt !== prevIn){ const d = inMkt ? 1 : -1; sig[i] = d; rows.push({i, dir:d}); }
-    prevIn = inMkt;
-  }
-  const warm = Math.min(Math.max(maxLb, BD_WIN + BD_MINHIST), n);
-  for(let i=0;i<warm;i++) sig[i] = 0;
-  return {sig, pos, breadth, density, warm, dropped:0,
-          rows: rows.filter(r=>r.i>=warm), rawCount: rows.length,
-          filt:null, hband:null, lband:null};
-}
-
-/* 分數部位回測：逐根權益、成本按部位變化量計。
-   與上面的 backtest() 不同，這裡的最大回撤含持倉期間的浮動虧損，是真實可感受的回撤。 */
-function backtestScaled(bars, R, P){
-  const n = bars.length, pos = R.pos;
-  let eq = 1, cur = 0, peak = 1, mdd = 0;
-  const trades = []; let leg = null;
-  const curve = [0];
-  for(let i=0;i<n-1;i++){
-    const want = pos[i];
-    if(want !== cur){
-      eq *= (1 - Math.abs(want-cur) * (P.cost||0)/100);
-      const wd = want>0.02?1:want<-0.02?-1:0, cd = cur>0.02?1:cur<-0.02?-1:0;
-      if(leg && wd !== cd){
-        const ret = (bars[i].c/leg.entry - 1)*100*(cd>0?1:-1) - 2*(P.cost||0);
-        trades.push({...leg, exit:bars[i].c, why:"部位翻向", gross:ret+2*(P.cost||0),
-                     ret, exitIdx:i, held:i-leg.idx});
-        leg = null;
-      }
-      if(!leg && wd !== 0) leg = {dir:wd, entry:bars[i].c, peak:bars[i].c, idx:i, t:bars[i].t};
-      cur = want;
-    }
-    eq *= (1 + cur*(bars[i+1].c/bars[i].c - 1));
-    curve.push((eq-1)*100);
-    if(eq>peak) peak = eq;
-    const dd = (peak-eq)/peak*100; if(dd>mdd) mdd = dd;
-  }
-  const closed = trades;
-  const wins = closed.filter(t=>t.ret>0), losses = closed.filter(t=>t.ret<=0);
-  const gp = wins.reduce((s,t)=>s+t.ret,0), gl = Math.abs(losses.reduce((s,t)=>s+t.ret,0));
-  const net = (eq-1)*100;
-  return {trades:closed, open:leg, curve, total:closed.length,
-          winRate: closed.length? wins.length/closed.length*100 : null,
-          avgWin: wins.length? gp/wins.length : null,
-          avgLoss: losses.length? -gl/losses.length : null,
-          pf: gl? gp/gl : null, net, gross:net, costDrag:0, mdd,
-          avgHeld: closed.length? closed.reduce((s,t)=>s+t.held,0)/closed.length : null,
-          avgSwing: null};
-}
-
 /* ============ 回測（純訊號進出，無止損/止盈/移動止損） ============ */
 function backtest(bars, R, P){
   const trades = [];
@@ -1089,7 +908,7 @@ let RAW1M = [], SYMBOL = "";
 
 /* 畫面預設只顯示最近這麼多根；統計與訊號仍吃滿全部根數。
    兩套策略的週期不同，同樣根數涵蓋的天數差很多，所以各自設定。 */
-const VIEW_DEFAULT = {A: 600, B: 900, C: 500};
+const VIEW_DEFAULT = {A: 600, B: 900};
 function viewBars(p){
   const v = +$("view" + p.k).value;
   return v > 0 ? v : VIEW_DEFAULT[p.k];
@@ -1102,9 +921,6 @@ const PANELS = [
    ZOOM:{span:VIEW_DEFAULT.A, off:0}, LIVE:null},
   {k:"B", label:"下方", tf:"15m", bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.B, off:0}, LIVE:null},
-  // 第三策略走日線、部位連續（-1~+1），計算與回測都走另一條路，見 computeBD / backtestScaled
-  {k:"C", label:"第三", tf:"1d", type:"bd", bars:[], R:null, BT:null, VIEW:null,
-   ZOOM:{span:VIEW_DEFAULT.C, off:0}, LIVE:null},
 ];
 const PAN = k => PANELS.find(p => p.k === k);
 
@@ -1354,13 +1170,6 @@ async function fetchSpot(){
 
 /* ============ 讀參數 ============ */
 function readParams(p){
-  // 第三策略（廣度 × 密度）沒有可調的 per/mult —— 時間尺度固定用 1/3/6/12 個月
-  // 與 252 日，刻意不開放調整，否則就只是換個方式過擬合。
-  if(p.type === "bd"){
-    return {srcMode:"close", per:0, mult:0, atrLen:12, atrMult:1.5, volLen:20,
-            useVol:false, useAtr2:false, longOnly:false,
-            cost: Math.max(0, +$("cost").value || 0)};
-  }
   return {
     srcMode: $("srcSel").value,
     per: Math.max(1, +$("per" + p.k).value || 100),
@@ -1550,9 +1359,7 @@ function renderSignals(p){
       <td data-l="時間">${barTime(b.t, p.tf)}</td>
       <td data-l="方向"><span class="pill ${r.dir>0?"long":"short"}">${r.dir>0?"買進":"賣出"}</span></td>
       <td data-l="訊號價">${fmt(b.c)}</td>
-      <td data-l="${p.type==="bd"?"目標部位":"過濾線"}" style="color:var(--dim)">${
-        p.type==="bd" ? (R.pos[r.i]>=0?"+":"") + (R.pos[r.i]*100).toFixed(0) + "%"
-                      : fmt(R.filt[r.i])}</td>
+      <td data-l="過濾線" style="color:var(--dim)">${fmt(R.filt[r.i])}</td>
       <td data-l="後續變動" class="${chg>=0?"up":"down"}">${pct(chg)}</td>
     </tr>`;
   }).join("");
@@ -1608,76 +1415,7 @@ function setupCanvas(cv){
 const C_UP = "#ff3b3b", C_DN = "#4cff00", C_LIVE = "#00d4ff";
 const MINBARS = 40;                 // 最多放大到只剩 40 根
 
-function drawChartBD(p){
-  /* 廣度 × 密度沒有通道可畫，畫的是價格線加底部部位帶：
-     綠＝做多、紅＝做空、灰＝空手，色塊越實代表部位越滿（部位連續 -1~+1，不是全有全無）。
-     座標走跟另外兩張圖同一套 zoomState / p.VIEW，縮放、拖曳、十字游標才會一致。 */
-  const cv = $("cv" + p.k);
-  const {ctx, W, H} = setupCanvas(cv);
-  ctx.clearRect(0, 0, W, H);
-  const bars = p.bars, pos = p.R.pos;
-  if(!bars.length) return;
-
-  const {span, s} = zoomState(p);
-  const e = Math.min(bars.length - 1, s + span - 1);
-  let lo = Infinity, hi = -Infinity;
-  for(let i = s; i <= e; i++){ if(bars[i].l < lo) lo = bars[i].l; if(bars[i].h > hi) hi = bars[i].h; }
-  const pad = (hi - lo) * 0.08 || 1;
-  lo -= pad; hi += pad;
-
-  const PL = 8, PR = 66, PT = 10, PB = 42, BAND = 22;
-  const show = e - s + 1;
-  const cw = (W - PL - PR) / Math.max(1, show);
-  const ch = H - PT - PB;
-  const X = i => PL + (i - s + 0.5) * cw;
-  const Y = v => PT + (hi - v) / (hi - lo) * ch;
-  p.VIEW = {s, e, show, X, Y, PL, PR, PT, PB, cw, ch, lo, hi, W, H};
-
-  // 格線與價格軸
-  ctx.font = "11px ui-monospace,monospace";
-  ctx.textBaseline = "middle";
-  for(let g = 0; g <= 5; g++){
-    const v = lo + (hi - lo) * g / 5, y = Y(v);
-    ctx.strokeStyle = "rgba(120,144,156,.13)";
-    ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W - PR, y); ctx.stroke();
-    ctx.fillStyle = "#5f6b7d";
-    ctx.fillText(fmt(v), W - PR + 6, y);
-  }
-
-  // 底部部位帶
-  const by = H - PB + 8;
-  for(let i = s; i <= e; i++){
-    const v = pos[i] || 0;
-    ctx.fillStyle = v > 0.02 ? "rgba(46,204,113," + Math.min(0.85, 0.18 + Math.abs(v) * 0.7) + ")"
-                  : v < -0.02 ? "rgba(231,76,60," + Math.min(0.85, 0.18 + Math.abs(v) * 0.7) + ")"
-                  : "rgba(140,140,140,0.16)";
-    ctx.fillRect(X(i) - cw / 2, by, Math.max(1, cw + 0.5), BAND);
-  }
-  ctx.strokeStyle = "rgba(120,144,156,.28)"; ctx.lineWidth = 1;
-  ctx.strokeRect(PL, by, W - PL - PR, BAND);
-
-  // 價格線
-  ctx.strokeStyle = "#c9a227"; ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  for(let i = s; i <= e; i++){
-    const x = X(i), y = Y(bars[i].c);
-    if(i === s) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-
-  // 首尾日期與圖例
-  ctx.fillStyle = "#5f6b7d"; ctx.font = "11px system-ui";
-  ctx.textBaseline = "top";
-  ctx.fillText(barTime(bars[s].t, p.tf), PL + 2, H - 14);
-  const endTxt = barTime(bars[e].t, p.tf), tw = ctx.measureText(endTxt).width;
-  ctx.fillText(endTxt, W - PR - tw - 2, H - 14);
-  ctx.fillStyle = "rgba(255,255,255,.42)";
-  ctx.fillText("部位帶：綠＝持倉（深淺就是部位大小）／灰＝空手・這套只做多", PL + 2, by - 15);
-}
-
-
 function drawChart(p){
-  if(p.type === "bd") return drawChartBD(p);
   const bars = p.bars, R = p.R;
   const cv = $("cv" + p.k);
   const {ctx, W, H} = setupCanvas(cv);
@@ -1862,11 +1600,7 @@ PANELS.forEach(p=>{
     tip.style.display = "block";
     tip.textContent =
       `${barTime(b.t, p.tf)}\n開 ${fmt(b.o)}  高 ${fmt(b.h)}\n低 ${fmt(b.l)}  收 ${fmt(b.c)}\n` +
-      (p.type === "bd"
-        ? `動量廣度 ${R.breadth[i]==null?"—":(R.breadth[i]*100).toFixed(0)+"%"}\n`
-          + `新高密度 ${R.density[i]==null?"—":(R.density[i]*100).toFixed(0)+"%"}\n`
-          + `目標部位 ${(R.pos[i]>=0?"+":"")+(R.pos[i]*100).toFixed(0)}%\n`
-        : `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n`) +
+      `過濾線 ${fmt(R.filt[i])}\n上軌 ${fmt(R.hband[i])}\n下軌 ${fmt(R.lband[i])}\n` +
       `量 ${fmt(b.v,1)}`;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     tip.style.left = Math.min(r.width - tw - 6, Math.max(6, x + 14)) + "px";
@@ -1894,9 +1628,7 @@ async function run(refetch = true){
   busy = true;
   try{
     SYMBOL = $("feed").value;
-    // 第三策略的週期是策略規格的一部分（固定日線），沒有對應的選單元素。
-    // 照舊去讀 $("tfC") 會拿到 null，整個 run() 會在第一步就中斷。
-    PANELS.forEach(p=>{ if(p.type !== "bd") p.tf = $("tf" + p.k).value; });
+    PANELS.forEach(p=>{ p.tf = $("tf" + p.k).value; });
 
     // 時段過濾會砍掉約 32%，所以多抓一些，確保過濾後根數足夠
     PANELS.forEach(p=>{
@@ -1918,17 +1650,11 @@ async function run(refetch = true){
 
     for(const p of PANELS){
       p.P = readParams(p);
-      // 「剔除休市」是為分鐘線設計的：日線一根就是一整天，套上去只會把樣本打散
-      let b = p.type === "bd" ? p.raw.slice() : applySession(p.raw);
+      let b = applySession(p.raw);
       if(b.length > p.limit) b = b.slice(-p.limit);
       p.bars = b;
-      if(p.type === "bd"){
-        p.R  = computeBD(b);
-        p.BT = backtestScaled(b, p.R, p.P);
-      }else{
-        p.R  = compute(b, p.P);
-        p.BT = backtest(b, p.R, p.P);
-      }
+      p.R = compute(b, p.P);
+      p.BT = backtest(b, p.R, p.P);
 
       renderSigBox(p);
       renderSignals(p);
@@ -1949,9 +1675,7 @@ async function run(refetch = true){
     const srcTxt = {hl2:"(H+L)/2", close:"收盤", hlc3:"(H+L+C)/3"}[PANELS[0].P.srcMode];
     $("paramTag").textContent =
       `${srcTxt}・`
-      + PANELS.map(p => p.type === "bd"
-          ? `${tfLabel(p.tf)} ${p.bars.length.toLocaleString()}根/廣度×密度(1,3,6,12月・252日)`
-          : `${tfLabel(p.tf)} ${p.bars.length.toLocaleString()}根/週期${p.P.per}/乘數${p.P.mult}`).join("・")
+      + PANELS.map(p => `${tfLabel(p.tf)} ${p.bars.length.toLocaleString()}根/週期${p.P.per}/乘數${p.P.mult}`).join("・")
       + `・成本 ${PANELS[0].P.cost}%`
       + ($("session").checked ? "・剔除休市" : "・24/7");
 
@@ -2243,14 +1967,14 @@ document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); }
 ["srcSel","perA","multA","perB","multB","cost","session","longOnlyA","longOnlyB"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(false));
 });
-["viewA","viewB","viewC"].forEach(id=>{
+["viewA","viewB"].forEach(id=>{
   $(id).addEventListener("change", ()=>{
     const p = PAN(id.slice(-1));
     p.ZOOM = {span: viewBars(p), off: 0};
     redrawChart(p);
   });
 });
-["feed","tfA","tfB","barsA","barsB","barsC"].forEach(id=>{
+["feed","tfA","tfB","barsA","barsB"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(true));
 });
 $("refresh").addEventListener("click", ()=> run(true));
@@ -2272,7 +1996,6 @@ $("refresh").addEventListener("click", ()=> run(true));
 const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"15m",
                   barsA:"20000", barsB:"50000", srcSel:"hl2",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
-                  barsC:"2000", viewC:VIEW_DEFAULT.C,
                   perA:300, multA:23, perB:100, multB:23, cost:0.115, session:true,
                   longOnlyA:false, longOnlyB:true};
 $("preset").addEventListener("click", ()=>{
@@ -2284,7 +2007,6 @@ $("preset").addEventListener("click", ()=>{
                    || $("session").checked !== DEFAULTS.session;
   $("feed").value = DEFAULTS.feed;
   $("barsA").value = DEFAULTS.barsA; $("barsB").value = DEFAULTS.barsB;
-  $("barsC").value = DEFAULTS.barsC; $("viewC").value = DEFAULTS.viewC;
   $("tfA").value = DEFAULTS.tfA;   $("tfB").value = DEFAULTS.tfB;
   $("srcSel").value = DEFAULTS.srcSel;
   $("perA").value = DEFAULTS.perA; $("multA").value = DEFAULTS.multA;
