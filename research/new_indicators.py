@@ -45,6 +45,7 @@ def sig_high_density(bars, win=252, near=0.95):
 
     密度本身就落在 0~1，直接當部位比例，一樣不挑門檻。
     """
+    import bisect
     C = [b["c"] for b in bars]
     T = [b["t"] for b in bars]
     s = [None] * len(C)
@@ -54,10 +55,21 @@ def sig_high_density(bars, win=252, near=0.95):
         w = C[i - win:i + 1]
         hi = max(w)
         s[i] = sum(1 for v in w if v >= hi * near) / float(len(w))
-    # 密度的絕對值偏低（多頭期約 0.2~0.4），除以自身歷史中位數做正規化後夾到 0~1
-    vals = sorted(v for v in s if v is not None)
-    med = vals[len(vals) // 2] if vals else 1.0
-    out = [None if v is None else max(0.0, min(1.0, v / (med * 2))) for v in s]
+
+    # 密度的絕對值偏低（多頭期約 0.2~0.4），要除以自身的歷史中位數做正規化。
+    # **中位數只能用「到當下為止」的歷史**——用整個樣本算會把未來資訊洩進回測，
+    # 那個除數在實盤根本算不出來。前 MIN_HIST 筆樣本太少、中位數不穩，一律不進場。
+    MIN_HIST = 252
+    hist, out = [], [None] * len(s)
+    for i, v in enumerate(s):
+        if v is None:
+            continue
+        bisect.insort(hist, v)
+        if len(hist) < MIN_HIST:
+            out[i] = 0.0
+            continue
+        med = hist[len(hist) // 2]
+        out[i] = 0.0 if med <= 0 else max(0.0, min(1.0, v / (med * 2)))
     return monthly(out, T)
 
 
@@ -92,22 +104,31 @@ def show(title, bars, lo=0, hi=None):
     print()
 
 
-for sym in ["GC=F", "GLD"]:
-    bars = fetch(sym)
-    T = [b["t"] for b in bars]
-    N = len(bars)
-    show("=== %s 全期  %s ~ %s ===" % (sym, ymd(T[0]), ymd(T[-1])), bars)
-    mid = N // 2
-    show("--- %s 後半（%s 起）← 決定性的一段 ---" % (sym, ymd(T[mid])), bars, mid, N)
+def main():
+    for sym in ["GC=F", "GLD"]:
+        bars = fetch(sym)
+        T = [b["t"] for b in bars]
+        N = len(bars)
+        show("=== %s 全期  %s ~ %s ===" % (sym, ymd(T[0]), ymd(T[-1])), bars)
+        mid = N // 2
+        show("--- %s 後半（%s 起）← 決定性的一段 ---" % (sym, ymd(T[mid])), bars, mid, N)
 
-bars = fetch("GC=F")
-T = [b["t"] for b in bars]
-def idx_of(d):
-    for i, t in enumerate(T):
-        if ymd(t) >= d:
-            return i
-    return len(T) - 1
-show("=== GC=F 2011-09 ~ 2015-12 大空頭 ===",
-     bars, idx_of("2011-09-05"), idx_of("2015-12-17"))
-show("=== GC=F 2019-06 ~ 2026-09 近期多頭（檢查有沒有拖累）===",
-     bars, idx_of("2019-06-01"), len(T) - 1)
+    bars = fetch("GC=F")
+    T = [b["t"] for b in bars]
+
+    def idx_of(d):
+        for i, t in enumerate(T):
+            if ymd(t) >= d:
+                return i
+        return len(T) - 1
+
+    show("=== GC=F 2011-09 ~ 2015-12 大空頭 ===",
+         bars, idx_of("2011-09-05"), idx_of("2015-12-17"))
+    show("=== GC=F 2019-06 ~ 2026-09 近期多頭（檢查有沒有拖累）===",
+         bars, idx_of("2019-06-01"), len(T) - 1)
+
+
+# 這些函式會被其他腳本 import，執行段一定要包在 main 裡，
+# 否則每次 import 都會重跑一整輪回測。
+if __name__ == "__main__":
+    main()
