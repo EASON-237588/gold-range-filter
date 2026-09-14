@@ -333,11 +333,6 @@
     .sheet .toolbar{grid-template-columns:1fr}
     .tab{font-size:10px}
   }
-  /* 下載進度。V2 把狀態列整個拿掉，setStatus 變成空殼，於是抓 22 萬根的那一分多鐘
-     畫面上完全沒有回饋。這條是把進度補回來，資料到齊就自己收起來。 */
-  .loadbar{margin:6px 10px 0;padding:6px 10px;border-radius:8px;font-size:12px;
-    background:rgba(88,166,255,.10);border:1px solid rgba(88,166,255,.30);color:#a8c4e6}
-  .loadbar.err{background:rgba(255,59,59,.12);border-color:rgba(255,59,59,.4);color:#ffb3b3}
 </style>
 </head>
 <body>
@@ -348,7 +343,6 @@
 
 </header>
 
-<div class="loadbar" id="loadBar" hidden></div>
 <div class="err" id="errBox"></div>
 <div class="srcwarn" id="srcWarn" hidden></div>
 
@@ -357,7 +351,7 @@
 <section class="strat">
   <div class="sigrow" id="sigA">
     <div class="sigcap dir">
-      <div class="sigline"><span class="tf">11 分</span></div>
+      <div class="sigline"><span class="tf">4 小時</span></div>
       <div class="v mid">—</div>
     </div>
     <div class="sigcap det"><span class="sigmeta">載入中…</span></div>
@@ -438,17 +432,13 @@
       <option value="XAUTUSDT">XAUT/USDT（Tether Gold・有量）</option>
     </select>
   </label>
-  <div class="grp"><span id="grpA">11 分</span></div>
+  <div class="grp"><span id="grpA">4 小時</span></div>
 
   <label>週期
     <select id="tfA">
-      <option value="5m">5 分</option>
-      <option value="11m" selected>11 分 ✦</option>
-      <option value="15m">15 分</option>
-      <option value="30m">30 分</option>
       <option value="1h">1 小時</option>
       <option value="2h">2 小時</option>
-      <option value="4h">4 小時</option>
+      <option value="4h" selected>4 小時</option>
       <option value="6h">6 小時</option>
       <option value="12h">12 小時</option>
       <option value="1d">日線</option>
@@ -464,16 +454,6 @@
     <input type="number" id="perA" value="200" min="2" step="10"></label>
   <label title="Range Filter 的範圍乘數。19.5 年掃描：15→5.5（1660 筆）、23→24.6（774 筆）、30→7.2（490 筆）。23 是峰值。">RF 範圍乘數
     <input type="number" id="multA" value="23" min="0.1" step="0.5"></label>
-  <label class="chk" title="勾選後，Range Filter 要換方向的那一根必須突破得夠用力才算數：突破幅度要大過下面設定的幾個 ATR。對應 TradingView 那支指標的「使用ATR过滤」。只在換方向那一根檢查，已經成立的方向不會被事後取消。">
-    <input type="checkbox" id="rfAtrA" checked> RF・ATR 過濾</label>
-  <label title="ATR 過濾用的 ATR 長度。跟停損用的 ATR（固定 14）是兩回事。">ATR 週期
-    <input type="number" id="rfAtrLenA" value="12" min="1" step="1"></label>
-  <label title="突破幅度要大過幾個 ATR 才承認換方向。設 0 等於不擋。">ATR 乘數
-    <input type="number" id="rfAtrMultA" value="1.5" min="0" step="0.1"></label>
-  <label class="chk" title="勾選後，換方向那一根的成交量必須高於均量。注意：黃金本尊 TVC:GOLD 幾乎沒有成交量，這個過濾在 TradingView 上等於不起作用；這頁跑的 PAXG 有真實成交量，它會真的擋掉訊號——同一段程式在兩邊不是同一回事。">
-    <input type="checkbox" id="rfVolA" checked> RF・交易量過濾</label>
-  <label title="成交量均線長度。">量均線週期
-    <input type="number" id="rfVolLenA" value="20" min="1" step="1"></label>
   <label title="做空在五個市場、五種方法的測試裡沒有一次是正貢獻（七個加密商品、四個熊市段、160 組不對稱設計、EURUSD 15 組）。留這個選項是讓你自己驗證，預設只做多。">方向
     <select id="modeA">
       <option value="long" selected>只做多</option>
@@ -481,24 +461,24 @@
       <option value="both">多空都做</option>
     </select>
   </label>
-  <label title="回看長度用「小時」指定，換週期時涵蓋的時間長度才不會跟著變。350 小時在 11 分圖上 = 1,909 根。TVC:GOLD 19.5 年掃描最佳，但它是窄峰：300 是 2.01、350 是 2.79、400 掉到 1.54，挪一格就掉三到四成。">回看小時
-    <input type="number" id="lookA" value="350" min="24" step="50"></label>
-  <label title="最多分幾段建倉。設 1 = 不分批，一次進滿。TVC:GOLD 19.5 年掃描：1 段 6.89、2 段 5.26、3 段 2.79，獲利因子單調遞減——分批加碼在這個樣本上是純減分。">段數
-    <input type="number" id="segsA" value="1" min="1" max="8" step="1"></label>
-  <label title="每逆行幾個 ATR 加一段。段數設 1 時此參數無作用。">加碼間距(ATR)
-    <input type="number" id="stepA" value="1.0" min="0.1" step="0.1"></label>
-  <label title="以平均成本計，反向走幾個 ATR 全平。TVC:GOLD 19.5 年掃描：8 最佳（7.30），4 是 6.89、2 是 4.82、20 是 6.40。多空都做模式下不啟用。">停損(ATR)
-    <input type="number" id="stopA" value="8" min="0.5" step="0.5"></label>
+  <label title="回看長度用「小時」指定，換週期時涵蓋的時間長度才不會跟著變。1200 小時 = 50 天">回看小時
+    <input type="number" id="lookA" value="1200" min="24" step="100"></label>
+  <label title="最多分幾段建倉。掃描顯示 2~3 段最好，段數越多越差">段數
+    <input type="number" id="segsA" value="3" min="1" max="8" step="1"></label>
+  <label title="每逆行幾個 ATR 加一段">加碼間距(ATR)
+    <input type="number" id="stepA" value="1.5" min="0.1" step="0.1"></label>
+  <label title="以平均成本計，反向走幾個 ATR 全平">停損(ATR)
+    <input type="number" id="stopA" value="3" min="0.5" step="0.5"></label>
   <label title="這套策略拿幾根 K 線做指標與回測">根數
     <select id="barsA">
-      <option value="10000">10,000（約 76 天）</option>
-      <option value="20000" selected>20,000（約 152 天）</option>
-      <option value="30000">30,000（約 229 天）</option>
-      <option value="50000">50,000（約 382 天・慢）</option>
+      <option value="3000">3,000</option>
+      <option value="5000">5,000</option>
+      <option value="10000">10,000</option>
+      <option value="15000" selected>15,000（全部六年）</option>
     </select>
   </label>
-  <label title="畫面預設畫最近幾根。兩格同為 11 分，用同一個值才能上下對照同一段時間。12,000 根約 92 天">顯示根數
-    <input type="number" id="viewA" value="12000" min="40" step="500"></label>
+  <label title="畫面預設畫最近幾根">顯示根數
+    <input type="number" id="viewA" value="600" min="40" step="50"></label>
   <div class="grp"><span id="grpB">11 分</span></div>
 
   <label>週期
@@ -519,17 +499,7 @@
     <input type="number" id="perB" value="200" min="2" step="10"></label>
   <label title="Range Filter 的範圍乘數。19.5 年掃描：15→5.5（1660 筆）、23→24.6（774 筆）、30→7.2（490 筆）。23 是峰值。">RF 範圍乘數
     <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
-  <label class="chk" title="勾選後，Range Filter 要換方向的那一根必須突破得夠用力才算數：突破幅度要大過下面設定的幾個 ATR。對應 TradingView 那支指標的「使用ATR过滤」。只在換方向那一根檢查，已經成立的方向不會被事後取消。">
-    <input type="checkbox" id="rfAtrB" checked> RF・ATR 過濾</label>
-  <label title="ATR 過濾用的 ATR 長度。跟停損用的 ATR（固定 14）是兩回事。">ATR 週期
-    <input type="number" id="rfAtrLenB" value="12" min="1" step="1"></label>
-  <label title="突破幅度要大過幾個 ATR 才承認換方向。設 0 等於不擋。">ATR 乘數
-    <input type="number" id="rfAtrMultB" value="1.5" min="0" step="0.1"></label>
-  <label class="chk" title="勾選後，換方向那一根的成交量必須高於均量。注意：黃金本尊 TVC:GOLD 幾乎沒有成交量，這個過濾在 TradingView 上等於不起作用；這頁跑的 PAXG 有真實成交量，它會真的擋掉訊號——同一段程式在兩邊不是同一回事。">
-    <input type="checkbox" id="rfVolB" checked> RF・交易量過濾</label>
-  <label title="成交量均線長度。">量均線週期
-    <input type="number" id="rfVolLenB" value="20" min="1" step="1"></label>
-  <label title="下方預設多空都做（使用者指定）。注意：做空在五個市場、五種方法的測試裡沒有一次是正貢獻——七個加密商品、四個熊市段、160 組不對稱設計、EURUSD 15 組。上方同為 11 分但走 Donchian 三態，維持只做多。">方向
+  <label title="下方預設多空都做（使用者指定）。注意：做空在五個市場、五種方法的測試裡沒有一次是正貢獻——七個加密商品、四個熊市段、160 組不對稱設計、EURUSD 15 組。上方 4 小時維持只做多。">方向
     <select id="modeB">
       <option value="long">只做多</option>
       <option value="short">只做空</option>
@@ -552,7 +522,7 @@
       <option value="50000">50,000（約 382 天・慢）</option>
     </select>
   </label>
-  <label title="畫面預設畫最近幾根。兩格同為 11 分，用同一個值才能上下對照同一段時間。12,000 根約 92 天">顯示根數
+  <label title="畫面預設畫最近幾根。11 分要 12,000 根才涵蓋約 92 天，跟上面 4 小時的 600 根（100 天）是同一個時間尺度">顯示根數
     <input type="number" id="viewB" value="12000" min="40" step="500"></label>
   <div class="sep"></div>
 
@@ -591,7 +561,7 @@
     <div class="sheet-h"><h3>訊號歷史</h3><span class="tag" id="sigTag">—</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
-      <h4 class="stratHd" id="sigHdA">11 分</h4>
+      <h4 class="stratHd" id="sigHdA">4 小時</h4>
       <div class="tblwrap">
         <table><thead><tr>
           <th>時間</th><th>動作</th><th>價格</th><th>平均成本</th><th>部位</th><th>後續變動</th>
@@ -613,7 +583,7 @@
     <div class="sheet-h"><h3>訊號績效統計</h3><span class="tag" id="statTag">純訊號進出、無停損停利・已扣交易成本</span>
       <button class="sheet-x" data-close>&times;</button></div>
     <div class="sheet-b">
-      <h4 class="stratHd" id="statHdA">11 分</h4>
+      <h4 class="stratHd" id="statHdA">4 小時</h4>
       <div class="stats" id="statsA"></div>
       <div style="margin-top:12px">
         <div class="legend" style="margin:0 0 6px"><span style="color:var(--dim)">權益曲線（每筆固定名目金額，已扣交易成本）</span></div>
@@ -665,35 +635,28 @@
     <p><b>部位是連續的。</b>V1 只有滿倉與空手兩種狀態，V2 可以在 0% 到 100% 之間分段建倉。
       目前投入多少，看訊號框的「持倉 xx%」與績效統計的「目前部位」。</p>
 
-    <div class="warn"><b>上方那套是保險，不是收益。</b>黃金十九年半（2007-03 起）實測，
-      上方的 Donchian 350 時是 +41.96%、最大回撤 5.75%；同期買進持有約 +540%。
-      <b>報酬只有全抱的十三分之一，回撤卻只有全抱的七分之一左右。</b>
-      它贏的是回撤，不是報酬。要不要用擇時，取決於你對回撤的忍受度，回測答不了。<br>
-      下方的 Range Filter 200/23 是同一份樣本裡唯一報酬也贏過買進持有的組合
-      （+608.28%），代價是回撤 24.77%、交易 774 筆，是上方的五倍筆數。</div>
+    <div class="warn"><b>這是保險，不是收益。</b>4 小時六年 +50.2%、回撤 6.4%；
+      同期買進持有 +120.0%、回撤 29.0%。<b>報酬只有全抱的四成二，回撤只有全抱的兩成二。</b>
+      風險調整後（報酬÷回撤 7.90 對 4.14）它是贏的，但如果你的目標是賺最多，
+      六年測下來的答案一直是買進持有。要不要用擇時，取決於你對回撤的忍受度，回測答不了。</div>
 
     <p><b>參數怎麼來的。</b>掃 450 組（回看 × 段數 × step × stop），先篩掉筆數&lt;10、
       最大單筆佔獲利&gt;60%、最長連虧&gt;8，再用報酬÷回撤排序——用報酬排序會選到單純曝險大的組合。
-      上方現在這組是在黃金十九年半的樣本上掃出來的：回看 350 小時／1 段／停損 8 ATR／只做多，
-      報酬÷回撤 7.30。三個軸各自的實測值：段數 1 是 6.89、2 是 5.26、3 是 2.79，
-      <b>分批加碼在這份樣本上是純減分</b>；停損 2 是 4.82、4 是 6.89、8 是 7.30、20 是 6.40。<br>
-      沿革：V2.02 以前上方是 4 小時、回看 1200 小時／3 段／停損 3，六年沒有一年虧損、
-      報酬÷回撤 7.90，那組數字仍然成立，只是不再是畫面上的配置。</p>
+      4 小時的冠軍：回看 1200 小時／3 段／step 1.5／stop 3。六年沒有一年虧損，
+      成本從 0.05% 拉到 0.5% 仍有 7.13，集中度 24%。</p>
 
     <div class="warn"><b>已知的三個弱點，先講清楚。</b><br>
-      <b>回看那一軸是窄峰</b>：350 小時是 2.79，但 300 小時只有 2.01、400 小時掉到 1.54，
-      挪一格就掉三到四成。這是最明顯的過擬合警訊，可用區間大約 300 到 400。<br>
-      <b>那組參數是在黃金十九年半的資料上掃的，不是在這頁的 PAXG 上</b>。兩邊商品不同、
-      交易時段不同（PAXG 是全天候、黃金週末休市），數字不會一致。<br>
-      <b>這頁看不到那十九年半</b>：11 分要用 1 分 K 合成，儀表板最多只拿得到幾個月，
-      所以畫面上的筆數少到沒有統計意義，下一段講的就是這件事。</div>
+      <b>回看那一軸是窄峰</b>：1200 小時是 7.90，但 800 小時掉到 4.11、1600 小時掉到 4.18，
+      兩側腰斬。這是最明顯的過擬合警訊。<br>
+      <b>六年只有 14 筆</b>，樣本撐不起太強的結論。<br>
+      <b>PAXG 沒有大空頭</b>（2020 年後才有資料），這套策略在真正跌勢裡的表現無法驗證。</div>
 
-    <div class="warn"><b>兩格的歷史深度都受限。</b>11 分不是原生週期，要用 1 分 K 合成，
-      20,000 根 11 分就得下載 22 萬根 1 分 K；要拿到六年得下載 317 萬根，儀表板做不到。
-      所以<b>畫面上這兩格的績效樣本都只有幾個月、統計上沒有意義</b>
-      （筆數少於 5 筆時會標示「樣本不足」）。<b>這兩張圖的用途是看即時訊號與訊號分歧，
-      不是拿來判斷策略好壞</b>——策略好壞看的是前面那組十九年半的掃描結果。
-      想換長一點的樣本，把根數改成 50,000（約 382 天），代價是載入明顯變慢。</div>
+    <div class="warn"><b>11 分面板的歷史深度受限。</b>11 分不是原生週期，要用 1 分 K 合成，
+      而 20,000 根 11 分就需要下載 22 萬根 1 分 K。要拿到六年得下載 317 萬根，
+      儀表板做不到。所以<b>下方面板顯示的績效樣本很短、統計上沒有意義</b>
+      （筆數少於 5 筆時會標示「樣本不足」）。它的用途是看即時訊號；
+      11 分的完整六年回測結果是 +35.0%／回撤 11.1%（報÷撤 3.15、28 筆），
+      明顯不如 4 小時，放在這裡是為了對照。</div>
 
     <p><b>時段過濾預設關閉。</b>參數設定裡的「黃金交易時段」在 V2 預設不勾。
       策略的參數與驗證全都在未過濾的完整資料上做，打開會砍掉約 29% 的 K 線、讓通道變形，
@@ -713,7 +676,7 @@
     <div class="sheet-b">
       <div class="notes">
         <p><b>這頁怎麼看。</b>主畫面固定一頁，不用捲動也不翻頁。最上面是現價，
-          下面兩張圖是兩套策略，上下都是 11 分，差別在訊號——上方走 Donchian、下方走 Range Filter，最底下五個鈕點開才是細節。<br>
+          下面兩張圖是兩套策略（上方 4 小時、下方 11 分），最底下五個鈕點開才是細節。<br>
           <b>K 棒顏色代表部位狀態，不是漲跌</b>：紅＝做多、綠＝做空、灰＝空手。
           K 棒夠寬時，實心是當根收漲、空心是收跌；擠太密時只畫影線。</p>
 
@@ -750,12 +713,11 @@
           所以訊號有可能盤中出現、收盤前又縮回去。要確認，看訊號歷史裡那筆的時間是不是已經過了一根 K 的長度。</div>
 
         <div class="warn"><b>兩套策略的分工。</b>
-          兩格都是 11 分，同一段行情、同一個尺度並排，看的是<b>兩種訊號在同一根 K 上怎麼分歧</b>。<br>
-          上方是 Donchian 三態、<b>只做多</b>，會回到空手，所以圖上有大片灰色，
-          訊號少、持倉久；黃金十九年半實測 156 筆、報酬÷回撤 7.30。<br>
-          下方是 Range Filter 兩態反轉、依你的設定<b>多空都做</b>，永遠在場、不經過空手，
-          同一份樣本 774 筆、報酬 +608.28% 但回撤 24.77%。<br>
-          上方管的是「少輸」，下方管的是「多賺」，不是同一件事，不要互相當驗證。</div>
+          上方 4 小時是主力：六年 14 筆、持倉 61.8 天、報酬÷回撤 7.90，六年沒有一年虧損，
+          參數經過 450 組掃描與分段、成本、鄰域三關驗證。<br>
+          下方 11 分是短週期對照，依你的設定預設<b>多空都做</b>。它的完整六年回測（只做多）
+          是報酬÷回撤 3.15，明顯不如 4 小時；而且 11 分要用 1 分 K 合成，
+          儀表板拿不到六年資料，畫面上的績效樣本很短，筆數少於 5 筆時會標「樣本不足」。</div>
 
         <div class="warn"><b>主源掛了會自動換備援。</b>順位是 Binance → Coinbase → OKX，
           現價再多一層 gold-api 現貨金價墊底。現價與 K 線分開切換：現價一失敗就立刻換家，
@@ -788,7 +750,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V2.05";
+const VERSION = "V2.02";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -931,7 +893,7 @@ function rngfilt(x, r){
 /* Range Filter 方向。回傳與 dirDonchian 相同的介面，兩者可互換。
    它天然就是**反轉系統**：狀態只有 +1／-1，不經過空手，所以「多空都做」不必另外處理；
    選「只做多」時由部位層把 -1 當成出場。 */
-function dirRangeFilter(bars, per, mult, flt){
+function dirRangeFilter(bars, per, mult){
   const n = bars.length;
   const src = bars.map(b => (b.h + b.l) / 2);      // TradingView 上驗證用的 (H+L)/2
   const smrng = smoothrng(src, per, mult);
@@ -945,34 +907,13 @@ function dirRangeFilter(bars, per, mult, flt){
     downward[i] = filt[i] < pf ? pd+1 : filt[i] > pf ? 0 : pd;
   }
 
-  /* 兩道過濾，對應 TradingView 那支指標勾的「使用ATR过滤」與「使用交易量过滤」。
-     只在**要換方向的那一根**檢查，已經成立的方向不會被事後取消，
-     否則同一段行情會在門檻邊緣反覆進出。
-     這是依常見寫法實作的，不是原指標的原始碼，數字不會跟 TradingView 完全一致。
-     量過濾在兩邊更是不等價：TVC:GOLD 幾乎沒有成交量，這頁的 PAXG 有真實量。 */
-  const useAtr = !!(flt && flt.useAtr), useVol = !!(flt && flt.useVol);
-  const atr    = useAtr ? atrWilder(bars, flt.atrLen) : null;
-  const volMa  = useVol ? sma(bars.map(b => b.v || 0), flt.volLen) : null;
-
   const dir = new Array(n).fill(0);
   let cur = 0;
   for(let i=0;i<n;i++){
     const rose = i>0 && src[i] > src[i-1];
     const fell = i>0 && src[i] < src[i-1];
-    const want = (src[i] > filt[i] && (rose || fell) && upward[i]   > 0) ?  1
-               : (src[i] < filt[i] && (rose || fell) && downward[i] > 0) ? -1 : 0;
-    if(want !== 0 && want !== cur){
-      let ok = true;
-      // 突破幅度要大過 atrMult 個 ATR，擋掉貼著通道邊緣的微弱翻轉
-      if(useAtr && atr[i] != null && atr[i] > 0)
-        ok = Math.abs(src[i] - filt[i]) >= flt.atrMult * atr[i];
-      // 換方向的那根要有高於均量的成交量
-      if(ok && useVol && volMa[i] != null)
-        ok = (bars[i].v || 0) > volMa[i];
-      if(ok) cur = want;
-    }else if(want !== 0){
-      cur = want;
-    }
+    if(src[i] > filt[i] && (rose || fell) && upward[i]   > 0) cur = 1;
+    else if(src[i] < filt[i] && (rose || fell) && downward[i] > 0) cur = -1;
     dir[i] = cur;
   }
   // 暖機：內層 EMA 尚未收斂時通道偏窄，訊號全是雜訊。V1 用 6×per，沿用。
@@ -1018,7 +959,7 @@ function compute(bars, P){
   const exitN = Math.max(10, Math.round(look/3));
   const rev = P.mode === "both";          // 多空都做＝反轉系統，永遠在場
   // Range Filter 本身就是反轉系統，不吃 rev 參數；Donchian 才需要三態／兩態之分。
-  const D = useRF ? dirRangeFilter(bars, P.per, P.mult, P.rf)
+  const D = useRF ? dirRangeFilter(bars, P.per, P.mult)
                   : dirDonchian(bars, look, exitN, rev);
   const A = atrWilder(bars, P.atrLen);
   const segFrac = 1.0 / P.segs;
@@ -1140,25 +1081,21 @@ let RAW1M = [], SYMBOL = "";
 /* 畫面預設只顯示最近這麼多根；統計與訊號仍吃滿全部根數。
    兩套策略的週期不同，同樣根數涵蓋的天數差很多，所以各自設定。 */
 /* 顯示根數：讓兩張圖涵蓋的**時間**接近，而不是根數接近。
-   V2.03 起兩格同為 11 分，所以用同一個值：12,000 根約 92 天。
-   （沿革：A 還是 4 小時時用 600 根＝100 天，與 11 分的 12,000 根同尺度。） */
-const VIEW_DEFAULT = {A: 12000, B: 12000};
+   4 小時 600 根＝100 天；11 分要 12,000 根才有 92 天。用同樣根數的話，
+   11 分只會畫出 7 天，跟上面那張完全不同尺度，沒辦法對照著看。 */
+const VIEW_DEFAULT = {A: 600, B: 12000};
 function viewBars(p){
   const v = +$("view" + p.k).value;
   return v > 0 ? v : VIEW_DEFAULT[p.k];
 }
 
-/* V2.03 起兩格都是 11 分（由 1 分線聚合），差別在訊號：
-     A = Donchian 三態只做多 350 時／1 段／停損 8   ← TVC:GOLD 19.5 年掃描最佳
-     B = Range Filter 200/23 多空反轉               ← 同一份樣本上報酬最高、回撤也最大
-   兩張圖同週期同尺度並排，看的是「同一段行情下兩種訊號怎麼分歧」。
-   沿革：V2.01~V2.02 的 A 是 4 小時原生 K；V1 時代是 11 分 300/23 + 15 分 100/23
-   + 日線廣度×密度三套，V2 全部移除，理由見策略說明面板。
-   label 用「上／下」而不是週期名：兩格週期相同時，週期名沒有辨識度。 */
+/* V2.01 起：A = 4 小時（原生 K，主力策略），B = 11 分（由 1 分線聚合，短週期對照）。
+   V1 的沿革（Range Filter 時代）：11 分 300/23 + 15 分 100/23 + 日線廣度×密度，
+   三套在 V2 全部移除，理由見策略說明面板。 */
 const PANELS = [
-  {k:"A", label:"上", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
+  {k:"A", label:"4 小時", tf:"4h",  bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.A, off:0}, LIVE:null},
-  {k:"B", label:"下", tf:"11m", bars:[], R:null, BT:null, VIEW:null,
+  {k:"B", label:"11 分",  tf:"11m", bars:[], R:null, BT:null, VIEW:null,
    ZOOM:{span:VIEW_DEFAULT.B, off:0}, LIVE:null},
 ];
 const PAN = k => PANELS.find(p => p.k === k);
@@ -1421,14 +1358,6 @@ function readParams(p){
     stepAtr: Math.max(0.1, +$("step" + p.k).value || 1.5),
     stopAtr: Math.max(0.5, +$("stop" + p.k).value || 3),
     atrLen:  14,
-    // Range Filter 專用的兩道過濾，Donchian 模式下不讀也不用
-    rf: {
-      useAtr:  $("rfAtr" + p.k).checked,
-      atrLen:  Math.max(1, Math.round(+$("rfAtrLen" + p.k).value || 12)),
-      atrMult: Math.max(0, +$("rfAtrMult" + p.k).value || 1.5),
-      useVol:  $("rfVol" + p.k).checked,
-      volLen:  Math.max(1, Math.round(+$("rfVolLen" + p.k).value || 20)),
-    },
     tfMin:   tfMinutes(p.tf),
     cost:    Math.max(0, +$("cost").value || 0),
   };
@@ -1462,26 +1391,21 @@ function renderTopCards(bars, spot){
 /* 每套策略一列兩個膠囊：左邊方向、右邊細節與持倉，
    兩者的浮動數字要能被每秒現價更新，所以 id 要帶上策略代號。 */
 function renderSigBox(p){
-  /* V2 沒有「買進／賣出」兩態。部位是連續的，所以主格顯示的是**現在的部位**，
-     不是方向訊號——「持倉 67%」比「買進」準確得多，因為它同時告訴你還有多少沒進場。
-     V2.03 修：這裡原本只判斷 pos>0，方向開放做空之後，空單（pos 為負）會掉進
-     else 被印成「空手」，下面那行還跟著顯示「上軌／等待突破」，跟實際持倉相反。 */
+  /* V2 沒有「買進／賣出」兩態。這套策略只做多，部位是連續的 0~100%，
+     所以主格顯示的是**現在的部位**，不是方向訊號——「持倉 67%」比「買進」
+     準確得多，因為它同時告訴你還有多少沒進場。 */
   const bars = p.bars, R = p.R, BT = p.BT, k = p.k;
   const n = bars.length - 1, last = bars[n];
   const lastAct = R.rows.length ? R.rows[R.rows.length-1] : null;
   const pos = R.pos[n] || 0;
   const avg = R.avg[n];
 
-  const posDir = pos > 0.001 ? 1 : (pos < -0.001 ? -1 : 0);
   let tone = "", big, line1, line2;
 
-  if(posDir !== 0){
-    tone = posDir > 0 ? " long" : " short";
-    big = `<div class="v ${posDir>0?"up":"down"}">`
-        + `${posDir>0?"持倉":"做空"} ${(Math.abs(pos)*100).toFixed(0)}%</div>`;
-    // 空單的浮動是反向的：價格跌才賺
-    const float = avg != null
-      ? (posDir > 0 ? (last.c/avg - 1) : (avg/last.c - 1)) * 100 : null;
+  if(pos > 0.001){
+    tone = " long";
+    big = `<div class="v up">持倉 ${(pos*100).toFixed(0)}%</div>`;
+    const float = avg != null ? (last.c/avg - 1) * 100 : null;
     line2 = `<span class="sigmeta">均價 ${avg!=null?fmt(avg):"—"}　浮動 `
           + `<span id="heldFloat${k}" class="${(float||0)>=0?"up":"down"}">`
           + `${float!=null?pct(float):"—"}</span></span>`;
@@ -1494,8 +1418,7 @@ function renderSigBox(p){
   }
 
   if(lastAct){
-    // 持空單時「訊號之後」要看的是對部位有利與否，不是價格漲跌
-    const chg = (last.c/lastAct.price - 1) * 100 * (posDir !== 0 ? posDir : 1);
+    const chg = (last.c/lastAct.price - 1) * 100;
     line1 = `<span class="sigmeta">${barTime(bars[lastAct.i].t, p.tf)} ${lastAct.why}</span>`
           + `<span class="sigmeta">之後 `
           + `<span id="sigSince${k}" class="${chg>=0?"up":"down"}">${pct(chg)}</span></span>`;
@@ -1524,10 +1447,9 @@ function renderSigBox(p){
 
   p.LIVE = {
     sigPrice: lastAct ? lastAct.price : null,
-    // 空手時給 1，讓每秒更新的數字與上面初次渲染的 chg 同一個口徑，不會跳動
-    sigDir  : posDir !== 0 ? posDir : 1,
+    sigDir  : pos > 0.001 ? 1 : 0,
     entry   : avg,
-    heldDir : posDir
+    heldDir : pos > 0.001 ? 1 : 0
   };
 }
 
@@ -1705,12 +1627,6 @@ function setupCanvas(cv){
 /* 部位狀態配色（使用者指定）：紅＝做多、綠＝做空、灰＝空手。
    這張圖畫的是部位不是漲跌，所以顏色不跟著 K 棒漲跌走。 */
 const C_LONG = "#ff3b3b", C_SHORT = "#4cff00", C_FLAT = "#7a8494", C_LIVE = "#9aa7b8";
-
-/* 通道線（藍＝進場上軌、橘虛線＝出場線、紅＝下軌）。V2.04 起預設不畫：
-   使用者要的是只看 K 棒顏色判斷部位，三條線把畫面塞滿反而看不出訊號在哪。
-   TradingView 那支 Pine 的「顯示通道線」也是預設關閉，同一個理由。
-   要看通道的話把這裡改成 true，價格軸範圍會跟著把通道納入。 */
-const SHOW_CHANNEL = false;
 const C_UP = C_LONG, C_DN = C_FLAT;
 const MINBARS = 40;                 // 最多放大到只剩 40 根
 
@@ -1726,16 +1642,10 @@ function drawChart(p){
 
   const {span, s: st} = zoomState(p);
   const e = Math.min(bars.length - 1, st + span - 1);
-  /* 不畫通道時價格軸也不該為它留空間，否則 K 線會被壓成畫面中間一條，
-     上下各留一大片空白。 */
   let lo = Infinity, hi = -Infinity;
   for(let i = st; i <= e; i++){
-    lo = Math.min(lo, bars[i].l);
-    hi = Math.max(hi, bars[i].h);
-    if(SHOW_CHANNEL){
-      if(R.lband[i] != null) lo = Math.min(lo, R.lband[i]);
-      if(R.hband[i] != null) hi = Math.max(hi, R.hband[i]);
-    }
+    lo = Math.min(lo, bars[i].l, R.lband[i] != null ? R.lband[i] : bars[i].l);
+    hi = Math.max(hi, bars[i].h, R.hband[i] != null ? R.hband[i] : bars[i].h);
   }
   const pad = (hi - lo) * 0.06 || 1;
   lo -= pad; hi += pad;
@@ -1759,36 +1669,33 @@ function drawChart(p){
     ctx.fillText(fmt(v), W - PR + 6, y);
   }
 
-  // 通道三線：進場上軌（藍）、下軌（紅）、出場線（橘虛線）
-  // started 要宣告在外面，下面畫均價線時還會用到
-  ctx.lineWidth = 1;
+  // Donchian 通道
+  ctx.strokeStyle = "rgba(88,166,255,.55)"; ctx.lineWidth = 1;
+  ctx.beginPath();
   let started = false;
-  if(SHOW_CHANNEL){
-    ctx.strokeStyle = "rgba(88,166,255,.55)";
-    ctx.beginPath();
-    for(let i = st; i <= e; i++){
-      if(R.hband[i] == null) continue;
-      const x = X(i), y = Y(R.hband[i]);
-      started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
-    }
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(255,120,120,.4)";
-    ctx.beginPath(); started = false;
-    for(let i = st; i <= e; i++){
-      if(R.lband[i] == null) continue;
-      const x = X(i), y = Y(R.lband[i]);
-      started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
-    }
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(255,200,80,.45)"; ctx.setLineDash([4,3]);
-    ctx.beginPath(); started = false;
-    for(let i = st; i <= e; i++){
-      if(R.filt[i] == null) continue;
-      const x = X(i), y = Y(R.filt[i]);
-      started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
-    }
-    ctx.stroke(); ctx.setLineDash([]);
+  for(let i = st; i <= e; i++){
+    if(R.hband[i] == null) continue;
+    const x = X(i), y = Y(R.hband[i]);
+    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
   }
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(255,120,120,.4)";
+  ctx.beginPath(); started = false;
+  for(let i = st; i <= e; i++){
+    if(R.lband[i] == null) continue;
+    const x = X(i), y = Y(R.lband[i]);
+    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
+  }
+  ctx.stroke();
+  // 出場線（近 exitN 根低點）
+  ctx.strokeStyle = "rgba(255,200,80,.45)"; ctx.setLineDash([4,3]);
+  ctx.beginPath(); started = false;
+  for(let i = st; i <= e; i++){
+    if(R.filt[i] == null) continue;
+    const x = X(i), y = Y(R.filt[i]);
+    started ? ctx.lineTo(x, y) : (ctx.moveTo(x, y), started = true);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
 
   /* K 線：顏色跟著**部位**走（紅持倉多／綠持倉空／灰空手），不是跟著漲跌走。
      每根寬度小於 2px 時只畫影線——那個尺度下再畫實體方塊，相鄰 K 棒會連成一整片色塊，
@@ -1819,22 +1726,22 @@ function drawChart(p){
   }
   ctx.stroke(); ctx.setLineDash([]);
 
-  /* 進出場標記：只畫「開一個新部位」的那一根，多單一個、空單一個。
-     加碼（dir 2）不畫——分三段就會連出三個三角形，同一波行情看起來像一排亂碼；
-     出場（dir -1）也不畫——出場點就是 K 棒顏色變掉的那一根，反轉系統更是
-     出場與反手同一根，灰三角會直接疊在反向進場的三角上。 */
+  // 進出場標記
   for(const r of R.rows){
     if(r.i < st || r.i > e) continue;
-    if(r.dir !== 1 && r.dir !== -2) continue;
     const x = X(r.i);
     if(r.dir === -2){                                                // 進場做空（橙）
       ctx.fillStyle = C_SHORT;
       const y = Y(bars[r.i].h) - 8;
       ctx.beginPath(); ctx.moveTo(x, y+7); ctx.lineTo(x-4, y); ctx.lineTo(x+4, y); ctx.fill();
-    }else{                                                           // 進場做多（紅）
-      ctx.fillStyle = C_LONG;
+    }else if(r.dir > 0){
+      ctx.fillStyle = r.dir === 1 ? C_LONG : "rgba(255,59,59,.6)";   // 進場做多／加碼
       const y = Y(bars[r.i].l) + 8;
       ctx.beginPath(); ctx.moveTo(x, y-7); ctx.lineTo(x-4, y); ctx.lineTo(x+4, y); ctx.fill();
+    }else{
+      ctx.fillStyle = C_FLAT;                                        // 出場
+      const y = Y(bars[r.i].h) - 8;
+      ctx.beginPath(); ctx.moveTo(x, y+7); ctx.lineTo(x-4, y); ctx.lineTo(x+4, y); ctx.fill();
     }
   }
 
@@ -1933,15 +1840,8 @@ PANELS.forEach(p=>{
 let timer = null, busy = false;
 
 function setStatus(cls, txt){
-  /* 舊的狀態列已移除，這裡改寫進頂部的進度列。
-     cls 只有三種："" 下載中、"live" 資料到齊、"err" 失敗。
-     到齊就把進度列收掉，不然它會一直佔著畫面第一行。 */
-  const bar = $("loadBar");
-  if(bar){
-    bar.hidden = (cls === "live");
-    bar.className = "loadbar" + (cls === "err" ? " err" : "");
-    bar.textContent = txt;
-  }
+  // 狀態列已移除。這裡留成 no-op 而不是刪掉呼叫端：下載進度、錯誤狀態等
+  // 十幾處都會呼叫它，改成容錯比逐一拔掉安全。
   const d = $("dot"), t = $("srcTxt");
   if(d) d.className = "status-dot " + cls;
   if(t) t.textContent = txt;
@@ -2003,14 +1903,12 @@ async function run(refetch = true){
 
     renderTopCards(PANELS[0].bars, spot);
 
-    const line = p => `${p.label}方 ${tfLabel(p.tf)}：${p.BT.total} 筆・勝率 `
+    const line = p => `${p.label} ${tfLabel(p.tf)}：${p.BT.total} 筆・勝率 `
       + `${p.BT.winRate!=null?p.BT.winRate.toFixed(1)+"%":"—"}・淨 ${pct(p.BT.net)}`;
     $("statTag").textContent = PANELS.map(line).join("　│　");
-    // 兩格方向可以不同（A 只做多、B 多空反轉），所以逐格組字，不能寫死「只做多」
     $("sigTag").textContent = PANELS.map(p =>
-      `${p.label}方 ${({long:"只做多",short:"只做空",both:"多空反轉"})[p.P.mode]}`
-      + `・${p.BT.total} 筆`).join("　│　")
-      + `・訊號反轉或停損才出場`;
+      `${p.label} ${p.BT.total} 筆交易`).join("　│　")
+      + `・只做多・不做空・訊號反轉或停損才出場`;
 
     $("paramTag").textContent =
       PANELS.map(p => `${tfLabel(p.tf)} ${({long:"只做多",short:"只做空",both:"多空"})[p.P.mode]}/`
@@ -2332,18 +2230,12 @@ $("refresh").addEventListener("click", ()=> run(true));
    最長連虧>8，再用報酬÷回撤排序。用報酬排序會選到單純曝險大的組合——
    這個專案先前每一次都栽在這裡。
 
-   上方 11 分 Donchian 回看350時／1段／step1.0／stop8／只做多　← V2.03 起
-     黃金 TVC:GOLD 2007-03~2026-09 實測 +41.96%／回撤 5.75%（報÷撤 7.30）・156 筆。
-     段數 1:6.89 2:5.26 3:2.79──分批加碼是純減分；停損 2:4.82 4:6.89 8:7.30 20:6.40。
-     回看是窄峰：300 是 2.01、350 是 2.79、400 掉到 1.54，挪一格掉三到四成。
-     這組是在黃金本尊上掃的，這頁跑的是 PAXG，兩者不會一致——PAXG 全天候、黃金週末休市。
-
-   沿革・4 小時 回看1200時／3段／step1.5／stop3（V2.02 以前的上方那格）
+   4 小時 回看1200時／3段／step1.5／stop3
      +50.2%／回撤 6.4%（報÷撤 7.90）・14 筆・勝率 71%・持倉 61.8 天
      六年沒有一年虧損；成本拉到 0.5%／單趟仍有 7.13；集中度 24%。
      唯一的過擬合疑慮是回看那一軸是窄峰：800 時掉到 4.11、1600 時掉到 4.18。
 
-   沿革・11 分 Donchian 回看800時／3段／step1.0／stop4（下方改用 Range Filter 前的值）
+   11 分 回看800時／3段／step1.0／stop4
      +35.0%／回撤 11.1%（報÷撤 3.15）・28 筆・勝率 43%・持倉 17.5 天
      明顯不如 4 小時：集中度 40%、最長連虧 5 筆，而且 stop 軸是單點尖峰
      （挪一格從 3.15 掉到 2.4）。放在這裡是為了對照，不是推薦。
@@ -2352,15 +2244,12 @@ $("refresh").addEventListener("click", ()=> run(true));
    4 小時年化約 7.2%，全抱是 14%。這是保險不是收益。
 
    成本 0.115%／單趟 = Binance VIP0 taker 0.10% + $1 萬單滑價 0.013%（實測簿深）。 */
-const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"11m",
-                  barsA:"20000", barsB:"20000",
+const DEFAULTS = {feed:"PAXGUSDT", tfA:"4h", tfB:"11m",
+                  barsA:"15000", barsB:"20000",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
                   sigAType:"donchian", perA:200, multA:23,
                   sigBType:"rf",       perB:200, multB:23,
-                  // 兩道過濾的預設＝TradingView 那支指標當時的設定
-                  rfAtrA:true, rfAtrLenA:12, rfAtrMultA:1.5, rfVolA:true, rfVolLenA:20,
-                  rfAtrB:true, rfAtrLenB:12, rfAtrMultB:1.5, rfVolB:true, rfVolLenB:20,
-                  modeA:"long", lookA:350,  segsA:1, stepA:1.0, stopA:8,
+                  modeA:"long", lookA:1200, segsA:3, stepA:1.5, stopA:3,
                   modeB:"both", lookB:800,  segsB:3, stepB:1.0, stopB:4,
                   cost:0.115, session:false};
 $("preset").addEventListener("click", ()=>{
@@ -2380,11 +2269,6 @@ $("preset").addEventListener("click", ()=>{
     $("mult"+k).value = DEFAULTS["mult"+k];
     $("mode"+k).value = DEFAULTS["mode"+k];
     $("look"+k).value = DEFAULTS["look"+k];
-    $("rfAtr"+k).checked   = DEFAULTS["rfAtr"+k];
-    $("rfAtrLen"+k).value  = DEFAULTS["rfAtrLen"+k];
-    $("rfAtrMult"+k).value = DEFAULTS["rfAtrMult"+k];
-    $("rfVol"+k).checked   = DEFAULTS["rfVol"+k];
-    $("rfVolLen"+k).value  = DEFAULTS["rfVolLen"+k];
     $("segs"+k).value = DEFAULTS["segs"+k];
     $("step"+k).value = DEFAULTS["step"+k];
     $("stop"+k).value = DEFAULTS["stop"+k];
@@ -2482,11 +2366,6 @@ function applyDefaults(){
     $("mult"+k).value = DEFAULTS["mult"+k];
     $("mode"+k).value = DEFAULTS["mode"+k];
     $("look"+k).value = DEFAULTS["look"+k];
-    $("rfAtr"+k).checked   = DEFAULTS["rfAtr"+k];
-    $("rfAtrLen"+k).value  = DEFAULTS["rfAtrLen"+k];
-    $("rfAtrMult"+k).value = DEFAULTS["rfAtrMult"+k];
-    $("rfVol"+k).checked   = DEFAULTS["rfVol"+k];
-    $("rfVolLen"+k).value  = DEFAULTS["rfVolLen"+k];
     $("segs"+k).value = DEFAULTS["segs"+k];
     $("step"+k).value = DEFAULTS["step"+k];
     $("stop"+k).value = DEFAULTS["stop"+k];
