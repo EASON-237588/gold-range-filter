@@ -1,0 +1,99 @@
+//@version=5
+strategy("通用趨勢反手 v1.1.0", overlay=true, initial_capital=100000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.02, slippage=1, process_orders_on_close=true, pyramiding=0)
+
+// 設計原則：所有門檻都以 ATR 表示，不含任何商品專屬的絕對數值；不使用成交量；
+// 永遠持有方向（多或空），訊號翻轉時同根反手，不空手。
+// 配色：多單紅色、空單綠色（台灣慣例）。
+
+g1 = "核心引擎（ATR 自適應）"
+atrLen   = input.int(60,   "ATR 週期", minval=2, group=g1)
+atrMult  = input.float(11.7, "ATR 倍數（越大越慢、交易越少）", step=0.1, minval=0.1, group=g1)
+confirm  = input.int(1,    "翻轉確認根數（連續幾根成立才反手）", minval=1, group=g1)
+minHold  = input.int(0,    "最短持有根數（0＝不限制）", minval=0, group=g1)
+warmMult = input.int(6,    "暖機倍數（ATR 週期 × 此值之前不下單）", minval=1, group=g1)
+
+g2 = "方向"
+allowLong  = input.bool(true, "做多", group=g2)
+allowShort = input.bool(true, "做空", group=g2)
+
+g3 = "回測區間"
+useRange = input.bool(false, "限定回測區間", group=g3)
+tStart   = input.time(timestamp("2000-01-01 00:00"), "起", group=g3)
+tEnd     = input.time(timestamp("2100-01-01 00:00"), "迄", group=g3)
+
+g4 = "顯示"
+showTrail = input.bool(true, "顯示追蹤線", group=g4)
+showBar   = input.bool(true, "K 棒依部位方向上色", group=g4)
+showArrow = input.bool(true, "顯示進場箭頭", group=g4)
+cLong     = input.color(#ff3b3b, "多單顏色", group=g4)
+cShort    = input.color(#00c853, "空單顏色", group=g4)
+
+atrV = ta.atr(atrLen)
+hh = ta.highest(high, atrLen)
+ll = ta.lowest(low, atrLen)
+longStop0  = hh - atrMult * atrV
+shortStop0 = ll + atrMult * atrV
+
+var float longStop = na
+var float shortStop = na
+longStop  := close[1] > nz(longStop[1], longStop0)   ? math.max(longStop0, nz(longStop[1], longStop0))   : longStop0
+shortStop := close[1] < nz(shortStop[1], shortStop0) ? math.min(shortStop0, nz(shortStop[1], shortStop0)) : shortStop0
+
+sigLong  = close > nz(shortStop[1], close)
+sigShort = close < nz(longStop[1], close)
+
+var int dir     = 0
+var int cnt     = 0
+var int flipBar = 0
+
+newDir = dir
+if dir == 1
+    cnt := sigShort ? cnt + 1 : 0
+    newDir := cnt >= confirm ? -1 : 1
+else if dir == -1
+    cnt := sigLong ? cnt + 1 : 0
+    newDir := cnt >= confirm ? 1 : -1
+else
+    cnt := 0
+    newDir := sigLong ? 1 : sigShort ? -1 : 0
+
+holdOk = minHold <= 0 or dir == 0 or bar_index - flipBar >= minHold
+if newDir != dir and not holdOk
+    newDir := dir
+
+flipped = newDir != dir and newDir != 0
+if flipped
+    cnt := 0
+    flipBar := bar_index
+dir := newDir
+
+warmOk  = bar_index >= atrLen * warmMult
+inRange = not useRange or (time >= tStart and time <= tEnd)
+canGo   = warmOk and inRange and barstate.isconfirmed
+
+if canGo and flipped
+    if dir == 1
+        if allowLong
+            strategy.entry("多", strategy.long, comment="翻多")
+        else
+            strategy.close_all(comment="翻多但不做多")
+    if dir == -1
+        if allowShort
+            strategy.entry("空", strategy.short, comment="翻空")
+        else
+            strategy.close_all(comment="翻空但不做空")
+
+if useRange and not inRange and strategy.position_size != 0
+    strategy.close_all(comment="區間外平倉")
+
+trail = dir == 1 ? longStop : dir == -1 ? shortStop : na
+plot(showTrail ? trail : na, "追蹤線", color=dir == 1 ? color.new(cLong, 0) : color.new(cShort, 0), linewidth=2, style=plot.style_linebr)
+
+posCol = strategy.position_size > 0 ? color.new(cLong, 0) : strategy.position_size < 0 ? color.new(cShort, 0) : color.new(#7a8494, 60)
+barcolor(showBar ? posCol : na)
+
+plotshape(showArrow and canGo and flipped and dir == 1, "翻多箭頭", shape.triangleup, location.belowbar, color.new(cLong, 0), size=size.small)
+plotshape(showArrow and canGo and flipped and dir == -1, "翻空箭頭", shape.triangledown, location.abovebar, color.new(cShort, 0), size=size.small)
+
+alertcondition(flipped and dir == 1,  "翻多", "翻多反手")
+alertcondition(flipped and dir == -1, "翻空", "翻空反手")
