@@ -1,0 +1,35 @@
+//@version=5
+strategy("Gold Trend Confirm", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.02, process_orders_on_close=true, pyramiding=0)
+
+fastLen = input.int(9, "Fast EMA Length")
+slowLen = input.int(21, "Slow EMA Length")
+rsiLen = input.int(14, "RSI Length")
+rsiLevel = input.float(50.0, "RSI Level")
+useAtrStop = input.bool(true, "Use ATR Stop")
+atrLen = input.int(14, "ATR Length")
+atrMult = input.float(2.5, "ATR Stop Mult")
+dirMode = input.string("Both", "Direction", options=["Both", "Long Only", "Short Only"])
+
+fastMA = ta.ema(close, fastLen)
+slowMA = ta.ema(close, slowLen)
+rsiVal = ta.rsi(close, rsiLen)
+
+longCond = ta.crossover(fastMA, slowMA) and rsiVal > rsiLevel and dirMode != "Short Only"
+shortCond = ta.crossunder(fastMA, slowMA) and rsiVal < rsiLevel and dirMode != "Long Only"
+
+if longCond
+    strategy.entry("Long", strategy.long)
+if shortCond
+    strategy.entry("Short", strategy.short)
+
+atrVal = ta.atr(atrLen)
+if useAtrStop
+    strategy.exit("SL_L", "Long", stop=strategy.position_avg_price - atrMult * atrVal)
+    strategy.exit("SL_S", "Short", stop=strategy.position_avg_price + atrMult * atrVal)
+
+plot(fastMA, "FastEMA", color=color.aqua)
+plot(slowMA, "SlowEMA", color=color.orange)
+
+posCol = strategy.position_size > 0 ? color.new(#ff3b3b, 0) : strategy.position_size < 0 ? color.new(#4cff00, 0) : color.new(#7a8494, 0)
+plot(close, "PosState", color=posCol, linewidth=3)
+barcolor(posCol)

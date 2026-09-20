@@ -1,0 +1,176 @@
+//@version=5
+strategy("黃金綜合訊號 v1.4.1", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, commission_type=strategy.commission.percent, commission_value=0.02, process_orders_on_close=true, pyramiding=0)
+g1 = "趨勢腿 Range Filter"
+useTrend = input.bool(true, "啟用趨勢腿", group=g1)
+rfPer = input.int(100, "取樣週期", group=g1)
+rfMult = input.float(18.0, "範圍倍數", step=0.5, group=g1)
+trendState = input.bool(false, "通道同向就進場（關閉＝只在翻轉那根進場）", group=g1)
+g2 = "CE 方向濾網"
+useCE = input.bool(true, "啟用 CE 方向濾網", group=g2)
+ceLen = input.int(60, "ATR 週期", group=g2)
+ceMult = input.float(10.1, "ATR 倍數", step=0.1, group=g2)
+g3 = "盤整腿 布林回歸"
+useMR = input.bool(false, "啟用盤整腿", group=g3)
+bbLen = input.int(20, "布林週期", group=g3)
+bbMult = input.float(2.0, "布林倍數", step=0.1, group=g3)
+adxLen = input.int(14, "ADX週期", group=g3)
+adxMax = input.float(20, "ADX上限（低於才進場）", group=g3)
+stopAtr = input.float(4.0, "停損ATR倍數", step=0.5, group=g3)
+maxBars = input.int(20, "最長持有根數", group=g3)
+g4 = "做空"
+useShortTrend = input.bool(true, "趨勢腿做空", group=g4)
+useShortMR = input.bool(false, "盤整腿做空", group=g4)
+g5 = "日內交易"
+dayFlat = input.bool(false, "每個交易時段最後一根強制平倉", group=g5)
+g6 = "空單輔助濾網與出場"
+sHtfOn = input.bool(true, "大週期濾網：大週期收盤在均線下才做空", group=g6)
+sHtfMin = input.int(1440, "大週期（分鐘，1440＝日線）", group=g6)
+sHtfLen = input.int(200, "大週期均線長度", group=g6)
+sMacdOn = input.bool(false, "MACD 濾網：MACD 在訊號線下且小於 0 才做空", group=g6)
+sMacdMin = input.int(0, "MACD 週期（分鐘，0＝圖表週期）", group=g6)
+mFast = input.int(12, "MACD 快線", group=g6)
+mSlow = input.int(26, "MACD 慢線", group=g6)
+mSig = input.int(9, "MACD 訊號線", group=g6)
+sAdxMin = input.float(0, "ADX 下限（高於才做空，0＝不用）", group=g6)
+sTpAtr = input.float(6, "空單停利 ATR 倍數（0＝不用）", step=0.5, group=g6)
+sSlAtr = input.float(0, "空單停損 ATR 倍數（0＝不用）", step=0.5, group=g6)
+g7 = "其他指標濾網（多空都套用，只管進場）"
+usePC = input.bool(false, "Purple Cloud 狀態同向", group=g7)
+pcLen = input.int(21, "Purple Cloud 週期", group=g7)
+pcAlpha = input.float(1.0, "Purple Cloud 係數", step=0.1, group=g7)
+useEma = input.bool(false, "均線趨勢：多單在均線上、空單在均線下", group=g7)
+emaLen = input.int(200, "趨勢均線長度", group=g7)
+useSar = input.bool(false, "SAR 同向：多單 SAR 在下、空單 SAR 在上", group=g7)
+sarStart = input.float(0.02, "SAR 起始", step=0.01, group=g7)
+sarMax = input.float(0.2, "SAR 上限", step=0.01, group=g7)
+useSt = input.bool(false, "超級趨勢同向（代替 Infinity Algo）", group=g7)
+stLen = input.int(10, "超級趨勢 ATR 週期", group=g7)
+stFac = input.float(3.0, "超級趨勢倍數", step=0.5, group=g7)
+g8 = "趨勢腿提早出場（多空都套用）"
+lTpAtr = input.float(0, "多單停利 ATR 倍數（0＝不用）", step=0.5, group=g8)
+xSar = input.bool(false, "SAR 翻到另一邊就出場", group=g8)
+xSt = input.bool(false, "超級趨勢翻向就出場", group=g8)
+xPc = input.bool(false, "Purple Cloud 翻向就出場", group=g8)
+src = close
+rng_size(_x, _qty, _n) =>
+    wper = _n * 2 - 1
+    avrng = ta.ema(math.abs(_x - _x[1]), _n)
+    ta.ema(avrng, wper) * _qty
+smoothrng = rng_size(src, rfMult, rfPer)
+var float filt = na
+filt := na(filt[1]) ? src : (src > filt[1] ? (src - smoothrng < filt[1] ? filt[1] : src - smoothrng) : (src + smoothrng > filt[1] ? filt[1] : src + smoothrng))
+var float upward = 0.0
+var float downward = 0.0
+upward := filt > filt[1] ? upward[1] + 1 : filt < filt[1] ? 0 : upward[1]
+downward := filt < filt[1] ? downward[1] + 1 : filt > filt[1] ? 0 : downward[1]
+longCond = (src > filt and src > src[1] and upward > 0) or (src > filt and src < src[1] and upward > 0)
+shortCond = (src < filt and src < src[1] and downward > 0) or (src < filt and src > src[1] and downward > 0)
+var int condIni = 0
+rfLong = longCond and condIni[1] == -1
+rfShort = shortCond and condIni[1] == 1
+condIni := longCond ? 1 : shortCond ? -1 : condIni[1]
+atrCE = ta.atr(ceLen)
+hh = ta.highest(close, ceLen)
+ll = ta.lowest(close, ceLen)
+longStop0 = hh - ceMult * atrCE
+shortStop0 = ll + ceMult * atrCE
+var float longStop = na
+var float shortStop = na
+longStop := close[1] > nz(longStop[1]) ? math.max(longStop0, nz(longStop[1])) : longStop0
+shortStop := close[1] < nz(shortStop[1]) ? math.min(shortStop0, nz(shortStop[1])) : shortStop0
+var int ceDir = 1
+ceDir := close > nz(shortStop[1]) ? 1 : close < nz(longStop[1]) ? -1 : nz(ceDir[1])
+basis = ta.sma(close, bbLen)
+dev = bbMult * ta.stdev(close, bbLen)
+upper = basis + dev
+lower = basis - dev
+[diP, diM, adx] = ta.dmi(adxLen, adxLen)
+atr14 = ta.atr(14)
+vol = na(volume) or volume <= 0 ? 1.0 : volume
+pcW(_n) => ta.vwma(hl2 * vol, _n) / ta.vwma(vol, _n)
+pcA3 = 2 * pcW(math.ceil(pcLen / 4)) - pcW(math.ceil(pcLen / 2))
+pcA4 = ta.vwma(pcA3, pcLen)
+var float pcB1 = na
+pcB1 := na(pcB1[1]) ? ta.sma(close, pcLen) : (pcB1[1] * (pcLen - 1) + close) / pcLen
+pcX2 = ta.atr(pcLen) * pcAlpha
+var int pcDir = 0
+pcDir := pcA4 <= close - pcX2 and close > pcB1 ? 1 : pcA4 >= close + pcX2 and close < pcB1 ? -1 : pcDir
+emaT = ta.ema(close, emaLen)
+sarV = ta.sar(sarStart, sarStart, sarMax)
+[stLine, stDir] = ta.supertrend(stFac, stLen)
+fOkL = (not usePC or pcDir == 1) and (not useEma or ohlc4 > emaT) and (not useSar or sarV < low) and (not useSt or stDir < 0)
+fOkS = (not usePC or pcDir == -1) and (not useEma or ohlc4 < emaT) and (not useSar or sarV > high) and (not useSt or stDir > 0)
+trendSigL = useTrend and (not useCE or ceDir == 1) and (trendState ? condIni == 1 : rfLong) and fOkL
+htfTf = str.tostring(sHtfMin)
+htfClose = request.security(syminfo.tickerid, htfTf, close[1], lookahead=barmerge.lookahead_on)
+htfMa = request.security(syminfo.tickerid, htfTf, ta.ema(close, sHtfLen)[1], lookahead=barmerge.lookahead_on)
+htfOk = not sHtfOn or htfClose < htfMa
+f_macd() =>
+    [a, b, c] = ta.macd(close, mFast, mSlow, mSig)
+    [a[1], b[1]]
+macdTf = sMacdMin == 0 ? timeframe.period : str.tostring(sMacdMin)
+[mL, mS] = request.security(syminfo.tickerid, macdTf, f_macd(), lookahead=barmerge.lookahead_on)
+macdOk = not sMacdOn or (mL < mS and mL < 0)
+adxOk = sAdxMin <= 0 or adx >= sAdxMin
+trendSigS = useTrend and useShortTrend and (not useCE or ceDir == -1) and (trendState ? condIni == -1 : rfShort) and htfOk and macdOk and adxOk and fOkS
+mrSigL = useMR and adx < adxMax and close < lower
+mrSigS = useMR and useShortMR and adx < adxMax and close > upper
+var int leg = 0
+var float lEntAtr = na
+var float mrStop = na
+var int mrBar = 0
+var float sEntAtr = na
+if strategy.position_size == 0
+    leg := 0
+mrTimeUp = bar_index - mrBar >= maxBars
+altXL = (xSar and sarV > high) or (xSt and stDir > 0) or (xPc and pcDir == -1)
+altXS = (xSar and sarV < low) or (xSt and stDir < 0) or (xPc and pcDir == 1)
+exitNow = (leg == 1 and (rfShort or altXL)) or (leg == -1 and (rfLong or altXS)) or (leg == 2 and (close >= basis or mrTimeUp)) or (leg == -2 and (close <= basis or mrTimeUp))
+revS = leg == 1 and rfShort and trendSigS
+revL = leg == -1 and rfLong and trendSigL
+sessEnd = dayFlat and session.islastbar
+if sessEnd
+    if strategy.position_size != 0
+        strategy.close_all(comment="收盤平倉")
+    leg := 0
+else if revS
+    strategy.entry("空", strategy.short, comment="趨勢空")
+    leg := -1
+    sEntAtr := atr14
+else if revL
+    strategy.entry("多", strategy.long, comment="趨勢多")
+    leg := 1
+    lEntAtr := atr14
+else if exitNow
+    strategy.close_all(comment="出場")
+    leg := 0
+else if leg == 0 and trendSigL
+    strategy.entry("多", strategy.long, comment="趨勢多")
+    leg := 1
+    lEntAtr := atr14
+else if leg == 0 and trendSigS
+    strategy.entry("空", strategy.short, comment="趨勢空")
+    leg := -1
+    sEntAtr := atr14
+else if leg == 0 and mrSigL
+    strategy.entry("多", strategy.long, comment="盤整多")
+    leg := 2
+    mrStop := close - stopAtr * atr14
+    mrBar := bar_index
+else if leg == 0 and mrSigS
+    strategy.entry("空", strategy.short, comment="盤整空")
+    leg := -2
+    mrStop := close + stopAtr * atr14
+    mrBar := bar_index
+if leg == 2 and not sessEnd
+    strategy.exit("盤停多", "多", stop=mrStop)
+if leg == -2 and not sessEnd
+    strategy.exit("盤停空", "空", stop=mrStop)
+if leg == -1 and not sessEnd and strategy.position_size < 0 and (sTpAtr > 0 or sSlAtr > 0)
+    strategy.exit("空出", "空", limit=sTpAtr > 0 ? strategy.position_avg_price - sTpAtr * sEntAtr : na, stop=sSlAtr > 0 ? strategy.position_avg_price + sSlAtr * sEntAtr : na)
+if leg == 1 and not sessEnd and strategy.position_size > 0 and lTpAtr > 0
+    strategy.exit("多出", "多", limit=strategy.position_avg_price + lTpAtr * lEntAtr)
+posCol = strategy.position_size > 0 ? color.new(#ff3b3b, 0) : strategy.position_size < 0 ? color.new(#00c853, 0) : color.new(#7a8494, 0)
+plot(filt, "Range Filter", color=color.new(#ffb020, 0), linewidth=2)
+plot(close, "部位狀態", color=posCol, linewidth=1)
+barcolor(posCol)
