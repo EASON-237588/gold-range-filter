@@ -271,6 +271,19 @@ export default {
     const u = new URL(req.url);
     const path = u.pathname;
 
+    /* 代轉（2026-10-12）：指數儀表板 A-1 的推播在使用者電腦上算（Binance 擋 Cloudflare，
+       這裡拿不到 QQQUSDT 逐筆），算出訊號後 POST 到這裡，由這支 worker 用 LINE_TOKEN 發出。
+       用獨立的 RELAY_KEY 驗證（存在那台電腦的 推播設定.json，不進 git），沒帶或帶錯一律 404。 */
+    if(path === "/relay"){
+      if(req.method !== "POST" || !env.RELAY_KEY || req.headers.get("x-relay-key") !== env.RELAY_KEY)
+        return new Response("Not found", {status: 404});
+      const body = await req.json().catch(() => null);
+      const text = body && body.text;
+      if(typeof text !== "string" || !text.trim() || text.length > 1500)
+        return new Response("Bad request", {status: 400});
+      return json(await lineSend(env, text));
+    }
+
     // 有設 ADMIN_KEY 就一律要帶通關碼，免得別人拿網址亂打
     // （每分鐘的 cron 走 scheduled，不經過這裡，不受影響）
     if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY)
