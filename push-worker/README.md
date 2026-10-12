@@ -1,5 +1,11 @@
 # 黃金訊號 LINE 推播
 
+> **2026-10-12 現況：這支 worker 已改推「那斯達克短趨勢・Gate 版」**（Gate QQQ_USDT 合約 30 秒 K、Range Filter 200/23，
+> 算法在 `src/gate_rf.js`，與指數趨勢儀表板「短趨勢・Gate」那格相同）。黃金的推播（下面說明的 Range Filter、
+> 以及 10/12 短暫改成的上方 Donchian）都已移除，電腦端 A-1 的 /relay 代轉也已移除。
+> 下面的申請 LINE、部署、Windows 坑仍然適用；「指標」「補歷史」那幾段是舊版內容，僅供參考。
+> 改用 Gate 的原因：Binance 整個封鎖 Cloudflare（實測東京等 8 個機房全部 403）。
+
 手機關掉、App 沒開，訊號一樣送得到你手上。跑在 Cloudflare Workers 上，每分鐘偵測一次，
 有新訊號就用 LINE Messaging API 推一則訊息給你。
 

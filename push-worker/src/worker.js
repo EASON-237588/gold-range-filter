@@ -1,316 +1,143 @@
 /**
- * 黃金訊號推播 —— Cloudflare Worker
+ * LINE「黃金訊號」推播 —— Cloudflare Worker
  *
- * V2.06 起推的是儀表板「上方」那組：11 分 Donchian 三態、只做多、回看 350 小時、
- * 1 段、停損 8 ATR、24/7 不剔除休市（規則在 donchian.js，逐行對齊 index.html）。
- * 之前推的是 Range Filter 300/23，那組現在是儀表板的下方。
+ * 2026-10-12 起只推一組：那斯達克短趨勢・Gate 版（Gate QQQ_USDT 合約 30 秒 K，Range Filter 200/23，
+ * 多空反轉；與指數趨勢儀表板「短趨勢・Gate」那格同一套，算法在 gate_rf.js）。
+ * 先前推過的黃金 Range Filter（9/02～10/12）、黃金上方 Donchian（10/12）與電腦端 A-1 代轉都已移除（使用者指定）。
+ * 為什麼是 Gate：Binance 整個封鎖 Cloudflare（10/12 實測東京等 8 個機房全 403），A-1 的資料拿不到。
  *
- * 每分鐘跑一次：抓最後幾根 1 分 K → 合成 11 分 K → 併進 KV 裡的歷史 →
- * 從上次算到的那根往下接著算 → 有進場／出場／停損就用 LINE Messaging API 推給你。
+ * 每分鐘：抓 Gate 最後 30 根 30 秒 K → 併進記憶的歷史 → 取最近 5,000 根算部位 →
+ *        跟「上次通知的方向」不同就推 LINE。
+ * KV 免費每天只能寫 1,000 次，所以 K 線每 5 分鐘才存一次（一天約 288 次），狀態只在推播後寫。
+ * 只存美國期貨交易時段的 K：Gate 只能回溯約 3.5 天，週末就占 2 天，存全部會在週一被洗光。
  *
- * 為什麼不是每次重抓兩萬根：Cloudflare 免費方案一次呼叫最多 50 個子請求，
- * 而且 KV 免費方案一天只有 1,000 次寫入。所以歷史存在 KV，每分鐘只抓尾巴（1 個請求），
- * 而且只有在「又收完一根 K」時才寫回 KV（K 線與狀態各一次，一天約 262 次）。
- *
- * 端點：
- *   GET /            看目前狀態（持倉、算到哪一根）
- *   GET /bootstrap   第一次用要打幾次，把歷史補到 KEEP 根為止
- *   GET /test        發一則測試訊息到 LINE
- *   GET /run         手動跑一次偵測（不必等 cron）
+ * 端點（有設 ADMIN_KEY 時要帶 ?key=）：
+ *   GET /      目前狀態（根數、方向、上次通知）
+ *   GET /run   手動跑一次
+ *   GET /test  發一則測試訊息
  */
-import {step, TF_MIN, LOOK, EXIT_N, LOOK_H, STOP_ATR, ATR_LEN} from "./donchian.js";
+import {calcRF, cmeOpen, PER, MULT} from "./gate_rf.js";
 
-const SYMBOL   = "PAXGUSDT";
-const KEEP     = 3600;               // KV 保留幾根 11 分 K（約 27 天）；回看要 1,909 根，夠用
-const TF_MS    = TF_MIN * 60000;
-const K_BARS   = "bars";
-const K_STATE  = "dstate";           // 上方策略的持倉狀態，見 donchian.js 開頭的說明
-const FRESH_BARS = 3;                // 只推最近三根以內的事件，斷線恢復或第一次部署時不翻舊帳
+const CONTRACT = "QQQ_USDT";
+const GATE     = "https://api.gateio.ws/api/v4/futures/usdt";
+const KEEP     = 5200;              // 存幾根交易時段 30 秒 K（暖機 1,200 根＋計算 5,000 根）
+const WINDOW   = 5000;
+const K_BARS   = "gbars";
+const K_STATE  = "gstate";
+const SAVE_MS  = 5 * 60000;
+const DASH     = "https://eason-237588.github.io/index-trend-dashboard/";
 
-// KV 只存訊號用得到的四個欄位，並用陣列而不是物件——
-// 免費方案每次呼叫只有 10ms CPU，JSON.parse 的大小要斤斤計較
-const pack   = bars => bars.map(b => [b.t, b.h, b.l, b.c]);
-const unpack = arr  => arr.map(a => ({t: a[0], h: a[1], l: a[2], c: a[3]}));
+const pack   = B => B.map(b => [b.t, b.h, b.l, b.c, b.v]);
+const unpack = A => A.map(a => ({t: a[0], h: a[1], l: a[2], c: a[3], v: a[4]}));
+const gk = k => ({t: k.t * 1000, h: +k.h, l: +k.l, c: +k.c, v: +k.v});
+const tw = t => new Date(t).toLocaleString("zh-TW", {timeZone: "Asia/Taipei", hour12: false,
+  month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"});
 
-/* ---------- 資料 ---------- */
-function aggregate(bars1m, minutes){
-  const ms = minutes * 60000, out = [];
-  let cur = null;
-  for(const b of bars1m){
-    const bucket = Math.floor(b.t / ms) * ms;
-    if(!cur || cur.t !== bucket){
-      if(cur) out.push(cur);
-      cur = {t: bucket, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v};
-    }else{
-      cur.h = Math.max(cur.h, b.h);
-      cur.l = Math.min(cur.l, b.l);
-      cur.c = b.c;
-      cur.v += b.v;
-    }
-  }
-  if(cur) out.push(cur);
-  return out;
-}
-// Binance 對 Cloudflare 機房 IP 回 451（地區封鎖），所以備妥多家交易所輪替。
-// 每家的分頁參數、排序、欄位順序都不一樣，這裡各自轉成統一格式：
-// 由舊到新的 [{t,o,h,l,c,v}]，t 是這根 K 的開始時間（毫秒）。
-// 實測（2026/09/02）：Cloudflare 出口 IP 被 Binance 擋 451、Bybit 擋 403，
-// Gate 與 OKX 通。Gate 每頁 1000 根所以排第一，OKX 每頁只有 100 根當備援。
-const SOURCES = [
-  {
-    name: "gate",
-    max: 1000,
-    url: (n, end) => `https://api.gateio.ws/api/v4/spot/candlesticks`
-       + `?currency_pair=${SYMBOL.replace("USDT","_USDT")}&interval=1m&limit=${n}`
-       + (end ? `&to=${Math.floor(end/1000)}` : ""),
-    // [t(秒), quoteVol, close, high, low, open, baseVol, closed]
-    parse: j => j.map(k => ({t:+k[0]*1000, o:+k[5], h:+k[3], l:+k[4], c:+k[2], v:+k[6]}))
-  },
-  {
-    name: "okx",
-    max: 100,
-    url: (n, end) => `https://www.okx.com/api/v5/market/history-candles`
-       + `?instId=${SYMBOL.replace("USDT","-USDT")}&bar=1m&limit=${n}`
-       + (end ? `&after=${end}` : ""),
-    parse: j => {
-      if(j.code !== "0") throw new Error(j.msg || "okx error");
-      return j.data
-        .map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
-        .reverse();                                   // okx 由新到舊
-    }
-  },
-  {
-    name: "binance",
-    max: 1000,
-    url: (n, end) => `https://data-api.binance.vision/api/v3/klines?symbol=${SYMBOL}`
-       + `&interval=1m&limit=${n}` + (end ? `&endTime=${end}` : ""),
-    parse: j => j.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
-  },
-  {
-    name: "binance-com",
-    max: 1000,
-    url: (n, end) => `https://api.binance.com/api/v3/klines?symbol=${SYMBOL}`
-       + `&interval=1m&limit=${n}` + (end ? `&endTime=${end}` : ""),
-    parse: j => j.map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
-  },
-  {
-    name: "bybit",
-    max: 1000,
-    url: (n, end) => `https://api.bybit.com/v5/market/kline?category=spot&symbol=${SYMBOL}`
-       + `&interval=1&limit=${n}` + (end ? `&end=${end}` : ""),
-    parse: j => {
-      if(j.retCode !== 0) throw new Error(j.retMsg || "bybit error");
-      return j.result.list
-        .map(k => ({t:+k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}))
-        .reverse();                                   // bybit 由新到舊
-    }
-  }
-];
-
-let SRC_OK = null;                 // 記住這次呼叫裡哪一家通
-
-async function tryOne(src, limit, endTime){
-  const n = Math.min(limit, src.max);
-  const r = await fetch(src.url(n, endTime), {cf:{cacheTtl:0}, headers:{accept:"application/json"}});
+async function jget(url, opt){
+  const r = await fetch(url, Object.assign({cf: {cacheTtl: 0}}, opt || {}));
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  const bars = src.parse(await r.json());
-  if(!bars.length || !isFinite(bars[0].c)) throw new Error("回傳格式不對或沒有資料");
-  return bars;
+  return r.json();
 }
-
-async function klines(limit, endTime){
-  const order = SRC_OK ? [SRC_OK, ...SOURCES.filter(s => s !== SRC_OK)] : SOURCES;
-  let last = "";
-  for(const src of order){
-    try{
-      const bars = await tryOne(src, limit, endTime);
-      SRC_OK = src;
-      return bars;
-    }catch(e){ last = `${src.name}: ${(e && e.message) || e}`; }
-  }
-  throw new Error(`所有資料源都失敗（最後：${last}）`);
-}
-
-// 一次把每家都試一遍，看誰從 Cloudflare 打得通
-async function probe(){
-  const out = {};
-  for(const src of SOURCES){
-    try{
-      const bars = await tryOne(src, 3, null);
-      const b = bars[bars.length-1];
-      out[src.name] = {ok:true, 每頁上限:src.max, 最後一根:tw(b.t), 收盤:b.c};
-    }catch(e){
-      out[src.name] = {ok:false, 錯誤:String((e && e.message) || e)};
-    }
+// 抓 [from, to] 秒之間的 30 秒 K，一頁最多 2,000 根
+async function candles(from, to){
+  const out = [];
+  for(let a = from; a < to && out.length < 12000; a += 30 * 1999){
+    const r = await jget(`${GATE}/candlesticks?contract=${CONTRACT}&interval=30s&from=${a}&to=${Math.min(to, a + 30 * 1999)}`);
+    out.push(...r.map(gk));
   }
   return out;
 }
-
-function merge(oldBars, tail){
-  if(!tail.length) return oldBars;
-  const cut = tail[0].t;
-  const out = oldBars.filter(b => b.t < cut).concat(tail);
-  return out.length > KEEP ? out.slice(-KEEP) : out;
+function merge(old, add){
+  const m = new Map(old.map(b => [b.t, b]));
+  for(const b of add) if(cmeOpen(b.t)) m.set(b.t, b);
+  const B = [...m.values()].sort((a, b) => a.t - b.t);
+  return B.length > KEEP ? B.slice(-KEEP) : B;
 }
 
-/* ---------- LINE ---------- */
 async function lineSend(env, text){
   if(!env.LINE_TOKEN) return {ok: false, err: "沒有設定 LINE_TOKEN"};
   const to = (env.LINE_TO || "").trim();
-  const url  = to ? "https://api.line.me/v2/bot/message/push"
-                  : "https://api.line.me/v2/bot/message/broadcast";
-  const body = to ? {to, messages: [{type: "text", text}]}
-                  : {messages: [{type: "text", text}]};
-  const r = await fetch(url, {
-    method: "POST",
+  const url  = to ? "https://api.line.me/v2/bot/message/push" : "https://api.line.me/v2/bot/message/broadcast";
+  const body = to ? {to, messages: [{type: "text", text}]} : {messages: [{type: "text", text}]};
+  const r = await fetch(url, {method: "POST",
     headers: {"Authorization": `Bearer ${env.LINE_TOKEN}`, "Content-Type": "application/json"},
-    body: JSON.stringify(body)
-  });
+    body: JSON.stringify(body)});
   return {ok: r.ok, status: r.status, err: r.ok ? null : await r.text()};
 }
-
-const tw = t => new Date(t).toLocaleString("zh-TW", {timeZone: "Asia/Taipei", hour12: false});
-const f2 = x => x == null ? "—" : x.toFixed(2);
-
-function message(e, last){
-  const head = {
-    "進場做多": "▲ 買進訊號",
-    "訊號離開": "▼ 出場訊號（跌破出場線）",
-    "停損":     "■ 停損出場"
-  }[e.why] || e.why;
-  let body =
-    `${head}\n` +
-    `黃金 ${SYMBOL.replace("USDT", "")} ${TF_MIN} 分・上方策略\n\n` +
-    `訊號時間　${tw(e.t)}\n` +
-    `訊號價　　${f2(e.price)}\n` +
-    `目前價　　${f2(last.c)}\n`;
-  if(e.why === "進場做多"){
-    body += `停損價　　${f2(last.stopLine)}\n` +
-            `出場線　　${f2(last.exitLine)}\n`;
-  }else{
-    const pnl = (e.price / e.avg - 1) * 100;
-    body += `進場價　　${f2(e.avg)}\n` +
-            `這筆損益　${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%（未扣成本）\n` +
-            `下次進場　突破 ${f2(last.entryLine)}\n`;
-  }
-  return body + `狀態　　　已收盤確認\n\n` +
-    `https://eason-237588.github.io/gold-range-filter/`;
+// 那斯達克點數換算：Hyperliquid 那斯達克 100 合約 ÷ QQQ 合約（同儀表板）
+async function ndx(){
+  try{
+    const j = await jget("https://api.hyperliquid.xyz/info", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify({type: "allMids", dex: "xyz"})});
+    return +j["xyz:XYZ100"] || null;
+  }catch(e){ return null; }
 }
 
-/* ---------- 主流程 ---------- */
+/* 同一個執行個體連續被叫到時，沿用記憶體裡上一輪的 K 線，省掉讀 KV＋解析 5,000 根 JSON
+   （免費方案每次只有 10 毫秒 CPU，實測不沿用時每輪 7～12 毫秒）。超過 10 分鐘沒更新就回頭讀 KV。 */
+let MEM = null;
+
 async function tick(env){
-  const packed = await env.STATE.get(K_BARS, "json");
-  const stored = packed ? unpack(packed) : null;
-  if(!stored || stored.length < LOOK + ATR_LEN + 10)
-    return {skipped: "歷史不足，請先打 /bootstrap", have: stored ? stored.length : 0};
+  const now = Date.now(), nowS = Math.floor(now / 1000);
+  const stored = MEM && now - MEM.at < 10 * 60000 ? MEM.bars
+               : unpack((await env.STATE.get(K_BARS, "json")) || []);
+  const lastT = stored.length ? stored[stored.length - 1].t : 0;
+  // 斷太久（或第一次）就往回補；平常只抓最後 30 根（15 分鐘）
+  const from = lastT && nowS - lastT / 1000 < 900 ? nowS - 900 : Math.max(nowS - 30 * 9990, Math.floor(lastT / 1000));
+  const B = merge(stored, await candles(from, nowS));
 
-  // 抓最後 8 個時間桶的 1 分 K；聚合後第一桶會被截半，丟掉
-  const raw = await klines(TF_MIN * 8);
-  const tail = aggregate(raw, TF_MIN).slice(1);
-  const merged = merge(stored, tail);
-
-  // 只有又收完一根 K 才寫回 KV，省 KV 寫入額度
-  const isClosed = b => b.t + TF_MS <= Date.now();
-  const newClosed = [...merged].reverse().find(isClosed);
-  const oldClosed = [...stored].reverse().find(isClosed);
-  if(newClosed && (!oldClosed || newClosed.t !== oldClosed.t))
-    await env.STATE.put(K_BARS, JSON.stringify(pack(merged)));
-
-  const closed = merged.filter(isClosed);
-  const st = await env.STATE.get(K_STATE, "json");
-  if(st && closed.length && closed[closed.length - 1].t <= st.t)
-    return {ok: true, note: "沒有新收盤的 K", state: st};
-
-  const r = step(closed, st);
-  r.last.c = merged[merged.length - 1].c;
-  const sent = [];
-  for(const e of r.events){
-    const age = (Date.now() - (e.t + TF_MS)) / TF_MS;
-    if(age > FRESH_BARS){ sent.push({at: tw(e.t), why: e.why, note: "舊事件，不推"}); continue; }
-    const res = await lineSend(env, message(e, r.last));
-    sent.push({at: tw(e.t), why: e.why, line: res});
+  // 存檔判斷要看「KV 裡最後一根」，記憶體沿用時另外記
+  const kvLast = MEM ? MEM.kvLast : lastT;
+  const newestClosed = [...B].reverse().find(b => b.t + 30000 <= now);
+  let saved = kvLast;
+  if(newestClosed && newestClosed.t - kvLast >= SAVE_MS){
+    await env.STATE.put(K_BARS, JSON.stringify(pack(B.filter(b => b.t + 30000 <= now))));
+    saved = newestClosed.t;
   }
-  await env.STATE.put(K_STATE, JSON.stringify(r.state));
-  console.log(JSON.stringify({state: r.state, events: sent,
-    entryLine: r.last.entryLine, exitLine: r.last.exitLine, src: SRC_OK && SRC_OK.name}));
-  return {ok: true, state: r.state, events: sent, last: r.last};
+  MEM = {bars: B, at: now, kvLast: saved};
+
+  const done = B.filter(b => b.t + 30000 <= now).slice(-WINDOW);
+  if(done.length < 6 * PER + 50) return {skipped: "歷史不足", have: done.length};
+  const {pos} = calcRF(done);
+  const cur = pos[pos.length - 1];
+  const st = (await env.STATE.get(K_STATE, "json")) || {notified: null};
+
+  if(st.notified == null){
+    await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now}));
+    return {ok: true, note: "第一次：只記方向不推", cur};
+  }
+  if(cur === 0 || cur === st.notified) return {ok: true, cur, bars: done.length};
+
+  let i = pos.length - 1;
+  while(i > 0 && pos[i - 1] === cur) i--;
+  const b = done[i], late = now - (b.t + 30000) > 5 * 60000;
+  const nd = await ndx(), q = done[done.length - 1].c;
+  const price = nd ? `${Math.round(b.c * nd / q).toLocaleString("en-US")}（QQQ 合約 ${b.c.toFixed(2)}）` : `QQQ 合約 ${b.c.toFixed(2)}`;
+  const text =
+    `${cur > 0 ? "▲ 翻多" : "▼ 翻空"}${late ? "（延遲通知）" : ""}\n` +
+    `那斯達克 短趨勢・Gate（30 秒 RF ${PER}/${MULT}）\n\n` +
+    `訊號時間　${tw(b.t)}\n` +
+    `訊號價　　${price}\n\n${DASH}`;
+  const sent = await lineSend(env, text);
+  if(sent.ok) await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now, flip: b.t}));
+  console.log(JSON.stringify({push: cur, at: tw(b.t), line: sent}));
+  return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent};
 }
 
-/* ---------- 分批補歷史（一次最多 25 個請求，免得撞到 50 子請求上限） ---------- */
-async function bootstrap(env){
-  const packed0 = (await env.STATE.get(K_BARS, "json")) || [];
-  let bars = unpack(packed0);
-  let endTime = bars.length ? bars[0].t - 1 : null;
-  let pages = 0;
-
-  while(bars.length < KEEP && pages < 25){
-    const raw = await klines(1000, endTime);
-    if(!raw.length) break;
-    // 這一批最舊的那桶可能被截半，丟掉
-    const chunk = aggregate(raw, TF_MIN).slice(1);
-    if(!chunk.length) break;
-    const edge = chunk[chunk.length - 1].t;
-    bars = chunk.concat(bars.filter(b => b.t > edge));
-    endTime = raw[0].t - 1;
-    pages++;
-    if(raw.length < 1000) break;
-  }
-  if(bars.length > KEEP) bars = bars.slice(-KEEP);
-  await env.STATE.put(K_BARS, JSON.stringify(pack(bars)));
-  return {bars: bars.length, need: KEEP, done: bars.length >= KEEP, pages,
-          from: bars.length ? tw(bars[0].t) : null};
-}
-
-const json = o => new Response(JSON.stringify(o, null, 2),
-  {headers: {"content-type": "application/json; charset=utf-8"}});
+const json = o => new Response(JSON.stringify(o, null, 2), {headers: {"content-type": "application/json; charset=utf-8"}});
 
 export default {
-  async scheduled(_event, env, ctx){ ctx.waitUntil(tick(env)); },
-
+  async scheduled(_e, env, ctx){ ctx.waitUntil(tick(env).catch(e => console.log("錯誤", String(e)))); },
   async fetch(req, env){
     const u = new URL(req.url);
-    const path = u.pathname;
-
-    /* 代轉（2026-10-12）：指數儀表板 A-1 的推播在使用者電腦上算（Binance 擋 Cloudflare，
-       這裡拿不到 QQQUSDT 逐筆），算出訊號後 POST 到這裡，由這支 worker 用 LINE_TOKEN 發出。
-       用獨立的 RELAY_KEY 驗證（存在那台電腦的 推播設定.json，不進 git），沒帶或帶錯一律 404。 */
-    if(path === "/relay"){
-      if(req.method !== "POST" || !env.RELAY_KEY || req.headers.get("x-relay-key") !== env.RELAY_KEY)
-        return new Response("Not found", {status: 404});
-      const body = await req.json().catch(() => null);
-      const text = body && body.text;
-      if(typeof text !== "string" || !text.trim() || text.length > 1500)
-        return new Response("Bad request", {status: 400});
-      return json(await lineSend(env, text));
-    }
-
-    // 有設 ADMIN_KEY 就一律要帶通關碼，免得別人拿網址亂打
-    // （每分鐘的 cron 走 scheduled，不經過這裡，不受影響）
-    if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY)
-      return new Response("Not found", {status: 404});
-
+    if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY) return new Response("Not found", {status: 404});
     try{
-      if(path === "/bootstrap") return json(await bootstrap(env));
-      if(path === "/run")       return json(await tick(env));
-      if(path === "/probe")     return json(await probe());
-      if(path === "/test")      return json(await lineSend(env,
-        "黃金訊號推播測試\n收到這則就代表設定成功，之後只有真的出訊號才會再吵你。"));
-
-      const bars = unpack((await env.STATE.get(K_BARS, "json")) || []);
-      const st = await env.STATE.get(K_STATE, "json");
-      return json({
-        strategy: `上方：${TF_MIN} 分 Donchian 回看 ${LOOK_H} 小時（${LOOK} 根）・出場 ${EXIT_N} 根・只做多・停損 ${STOP_ATR} ATR・24/7`,
-        bars: bars.length, need: KEEP,
-        newest: bars.length ? tw(bars[bars.length - 1].t) : null,
-        position: st ? (st.side ? `持多，進場價 ${f2(st.avg)}` : "空手") : "尚未計算",
-        computedTo: st ? tw(st.t) : null,
-        source: SRC_OK ? SRC_OK.name : "尚未偵測",
-        locked: env.ADMIN_KEY ? "已上鎖" : "未上鎖：請設定 ADMIN_KEY",
-        lineConfigured: !!env.LINE_TOKEN,
-        mode: env.LINE_TO ? "push（指定對象）" : "broadcast（發給所有好友）"
-      });
-    }catch(e){
-      return json({error: String((e && e.message) || e)});
-    }
+      if(u.pathname === "/run")  return json(await tick(env));
+      if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
+      const B = unpack((await env.STATE.get(K_BARS, "json")) || []);
+      return json({strategy: `那斯達克短趨勢・Gate：${CONTRACT} 30 秒 RF ${PER}/${MULT}`,
+        bars: B.length, newest: B.length ? tw(B[B.length - 1].t) : null,
+        state: await env.STATE.get(K_STATE, "json"), lineConfigured: !!env.LINE_TOKEN});
+    }catch(e){ return json({error: String((e && e.message) || e)}); }
   }
 };
