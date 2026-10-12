@@ -101,7 +101,8 @@
   .panel h2 .tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:99px;border:1px solid var(--line);color:var(--dim2)}
 
   /* 一頁塞兩套策略：每套是「訊號盒 + 圖」，各自吃掉一半高度 */
-  .strat{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+  .strat{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:8px}
+  .strat.big{flex:2 1 0}   /* V2.07：上方占 2/3、下方占 1/3（使用者指定） */
   /* 兩個膠囊並排：左邊回答「什麼訊號」，右邊放細節與持倉。
      拆開的好處是方向那格永遠在同一個位置，不會被右邊的字數推著跑。 */
   .sigrow{display:flex;gap:8px;flex:none;align-items:stretch}
@@ -354,7 +355,7 @@
 
 <div class="grid" id="cards"></div>
 
-<section class="strat">
+<section class="strat big">
   <div class="sigrow" id="sigA">
     <div class="sigcap dir">
       <div class="sigline"><span class="tf">11 分</span></div>
@@ -790,7 +791,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V2.06";
+const VERSION = "V2.07";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
