@@ -516,17 +516,17 @@
     </select>
   </label>
   <label title="Range Filter 的取樣週期。19.5 年掃描：80→10.0、150→16.9、200→24.6、250→21.1、300→12.4。150~250 是平緩區。">RF 取樣週期
-    <input type="number" id="perB" value="200" min="2" step="10"></label>
+    <input type="number" id="perB" value="300" min="2" step="10"></label>
   <label title="Range Filter 的範圍乘數。19.5 年掃描：15→5.5（1660 筆）、23→24.6（774 筆）、30→7.2（490 筆）。23 是峰值。">RF 範圍乘數
     <input type="number" id="multB" value="23" min="0.1" step="0.5"></label>
   <label class="chk" title="勾選後，Range Filter 要換方向的那一根必須突破得夠用力才算數：突破幅度要大過下面設定的幾個 ATR。對應 TradingView 那支指標的「使用ATR过滤」。只在換方向那一根檢查，已經成立的方向不會被事後取消。">
-    <input type="checkbox" id="rfAtrB" checked> RF・ATR 過濾</label>
+    <input type="checkbox" id="rfAtrB"> RF・ATR 過濾</label>
   <label title="ATR 過濾用的 ATR 長度。跟停損用的 ATR（固定 14）是兩回事。">ATR 週期
     <input type="number" id="rfAtrLenB" value="12" min="1" step="1"></label>
   <label title="突破幅度要大過幾個 ATR 才承認換方向。設 0 等於不擋。">ATR 乘數
     <input type="number" id="rfAtrMultB" value="1.5" min="0" step="0.1"></label>
   <label class="chk" title="勾選後，換方向那一根的成交量必須高於均量。注意：黃金本尊 TVC:GOLD 幾乎沒有成交量，這個過濾在 TradingView 上等於不起作用；這頁跑的 PAXG 有真實成交量，它會真的擋掉訊號——同一段程式在兩邊不是同一回事。">
-    <input type="checkbox" id="rfVolB" checked> RF・交易量過濾</label>
+    <input type="checkbox" id="rfVolB"> RF・交易量過濾</label>
   <label title="成交量均線長度。">量均線週期
     <input type="number" id="rfVolLenB" value="20" min="1" step="1"></label>
   <label title="下方預設多空都做（使用者指定）。注意：做空在五個市場、五種方法的測試裡沒有一次是正貢獻——七個加密商品、四個熊市段、160 組不對稱設計、EURUSD 15 組。上方同為 11 分但走 Donchian 三態，維持只做多。">方向
@@ -539,11 +539,13 @@
   <label title="800 小時 = 33 天">回看小時
     <input type="number" id="lookB" value="800" min="24" step="100"></label>
   <label>段數
-    <input type="number" id="segsB" value="3" min="1" max="8" step="1"></label>
+    <input type="number" id="segsB" value="1" min="1" max="8" step="1"></label>
   <label>加碼間距(ATR)
     <input type="number" id="stepB" value="1.0" min="0.1" step="0.1"></label>
   <label>停損(ATR)
     <input type="number" id="stopB" value="4" min="0.5" step="0.5"></label>
+  <label class="chk" title="V2.06 起下方預設照 LINE 推播（push-worker）的算法：RF 300/23、不加過濾、1 段、多空反轉、剔除休市。打勾＝只有下方剔除黃金休市時段，上方不受影響（上方看最下面那個共用的「黃金交易時段」）。">
+    <input type="checkbox" id="sessB" checked> 下方剔除休市（同 LINE 推播）</label>
   <label title="11 分是合成週期，要用 1 分 K 聚合。20,000 根約 152 天，已需下載 22 萬根 1 分 K">根數
     <select id="barsB">
       <option value="10000">10,000（約 76 天）</option>
@@ -788,7 +790,7 @@ const fmt = (v,d=2) => (v==null||!isFinite(v)) ? "—" : v.toLocaleString("en-US
 const pct = v => (v==null||!isFinite(v)) ? "—" : (v>=0?"+":"") + v.toFixed(2) + "%";
 
 // 版號的唯一來源：標題與說明面板都讀這裡，改版只要動這一行
-const VERSION = "V2.05";
+const VERSION = "V2.06";
 
 function tsText(ms){
   const d = new Date(ms), p = n => String(n).padStart(2,"0");
@@ -1174,8 +1176,12 @@ function goldOpen(t){
   if(h === 21) return false;                // 每日休息一小時
   return true;
 }
-function applySession(bars){
-  return $("session").checked ? bars.filter(b => goldOpen(b.t)) : bars.slice();
+// 共用的「黃金交易時段」管兩格；下方另有 sessB（V2.06，照 LINE 推播剔除休市），只管下方
+function sessOn(k){
+  return $("session").checked || (k === "B" && $("sessB").checked);
+}
+function applySession(bars, k){
+  return sessOn(k) ? bars.filter(b => goldOpen(b.t)) : bars.slice();
 }
 
 // Binance 原生支援的區間；2m 與 11m 不在其中，需由 1m 聚合
@@ -1796,10 +1802,12 @@ function drawChart(p){
   const thin = cw < 2;
   const bw = Math.max(1, Math.min(3, cw * 0.5));
   ctx.lineWidth = thin ? 0.7 : 1;
+  // V2.06：上方只做多、不會有空單，空手改用綠色（使用者指定）；下方空手維持灰色
+  const flatCol = p.k === "A" ? C_SHORT : C_FLAT;
   for(let i = st; i <= e; i++){
     const b = bars[i], x = X(i);
     const v = R.pos[i] || 0;
-    ctx.strokeStyle = ctx.fillStyle = v > 0.001 ? C_LONG : (v < -0.001 ? C_SHORT : C_FLAT);
+    ctx.strokeStyle = ctx.fillStyle = v > 0.001 ? C_LONG : (v < -0.001 ? C_SHORT : flatCol);
     ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
     if(thin) continue;
     const y1 = Y(Math.max(b.o, b.c)), y2 = Y(Math.min(b.o, b.c));
@@ -1987,7 +1995,7 @@ async function run(refetch = true){
     for(const p of PANELS){
       p.P = readParams(p);
       // 「剔除休市」是為分鐘線設計的：日線一根就是一整天，套上去只會把樣本打散
-      let b = applySession(p.raw);
+      let b = applySession(p.raw, p.k);
       if(b.length > p.limit) b = b.slice(-p.limit);
       p.bars = b;
       p.R  = compute(b, p.P);
@@ -2017,9 +2025,9 @@ async function run(refetch = true){
                     + `${p.bars.length.toLocaleString()}根/`
                     + (p.P.sigType === "rf" ? `RF ${p.P.per}／${p.P.mult}/`
                                             : `Donch回看${p.P.lookH}時/`)
-                    + `${p.P.segs}段/step${p.P.stepAtr}/stop${p.P.stopAtr}`).join("・")
-      + `・成本 ${PANELS[0].P.cost}%`
-      + ($("session").checked ? "・剔除休市" : "・24/7");
+                    + `${p.P.segs}段/step${p.P.stepAtr}/stop${p.P.stopAtr}`
+                    + (sessOn(p.k) ? "/剔除休市" : "/24/7")).join("・")
+      + `・成本 ${PANELS[0].P.cost}%`;
 
     if(sheetOpen("shStats")) PANELS.forEach(drawEquity);
 
@@ -2311,7 +2319,7 @@ document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeSheet(); }
 
 /* 事件綁定 */
 ["sigAType","perA","multA","modeA","lookA","segsA","stepA","stopA",
- "sigBType","perB","multB","modeB","lookB","segsB","stepB","stopB","cost","session"].forEach(id=>{
+ "sigBType","perB","multB","modeB","lookB","segsB","stepB","stopB","sessB","cost","session"].forEach(id=>{
   $(id).addEventListener("change", ()=> run(false));
 });
 ["viewA","viewB"].forEach(id=>{
@@ -2356,13 +2364,14 @@ const DEFAULTS = {feed:"PAXGUSDT", tfA:"11m", tfB:"11m",
                   barsA:"20000", barsB:"20000",
                   viewA:VIEW_DEFAULT.A, viewB:VIEW_DEFAULT.B,
                   sigAType:"donchian", perA:200, multA:23,
-                  sigBType:"rf",       perB:200, multB:23,
-                  // 兩道過濾的預設＝TradingView 那支指標當時的設定
+                  sigBType:"rf",       perB:300, multB:23,
+                  // 上方兩道過濾的預設＝TradingView 那支指標當時的設定
                   rfAtrA:true, rfAtrLenA:12, rfAtrMultA:1.5, rfVolA:true, rfVolLenA:20,
-                  rfAtrB:true, rfAtrLenB:12, rfAtrMultB:1.5, rfVolB:true, rfVolLenB:20,
+                  // V2.06：下方照 LINE 推播（push-worker）：RF 300/23、不過濾、1 段、多空反轉、剔除休市
+                  rfAtrB:false, rfAtrLenB:12, rfAtrMultB:1.5, rfVolB:false, rfVolLenB:20,
                   modeA:"long", lookA:350,  segsA:1, stepA:1.0, stopA:8,
-                  modeB:"both", lookB:800,  segsB:3, stepB:1.0, stopB:4,
-                  cost:0.115, session:false};
+                  modeB:"both", lookB:800,  segsB:1, stepB:1.0, stopB:4,
+                  sessB:true, cost:0.115, session:false};
 $("preset").addEventListener("click", ()=>{
   const needRefetch = $("feed").value !== DEFAULTS.feed
                    || $("tfA").value   !== DEFAULTS.tfA
@@ -2391,6 +2400,7 @@ $("preset").addEventListener("click", ()=>{
   }
   $("cost").value = DEFAULTS.cost;
   $("session").checked = DEFAULTS.session;
+  $("sessB").checked = DEFAULTS.sessB;
   PANELS.forEach(p=>{ p.ZOOM = {span: viewBars(p), off: 0}; });
   run(needRefetch);
 });
@@ -2493,6 +2503,7 @@ function applyDefaults(){
   }
   $("cost").value = DEFAULTS.cost;
   $("session").checked = DEFAULTS.session;
+  $("sessB").checked = DEFAULTS.sessB;
   syncGroupLabels();
 }
 applyDefaults();
