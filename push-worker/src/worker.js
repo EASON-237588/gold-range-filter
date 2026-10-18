@@ -48,6 +48,11 @@ export const KEEP = WARM + 1300;       /* 存幾根交易時段 37 秒 K。多�
                                           原本設 600 根（6 小時），B2 平均一天才翻 1～2 次，過半時間都在不表態，故放寬。 */
 const TAIL_S   = 900;               // 平常每輪往後抓幾秒的逐筆（15 分鐘，約 475 筆）
 const BACK_S   = 1800;              // 暖機不足時每輪往回抓幾秒的逐筆（半小時，約 950 筆）
+/* 資料版本：合成規則一改就 +1，記憶體與 KV 裡的舊資料會整個作廢、重新補。
+   沒有這個的話，改完規則後舊資料會一直被沿用——cron 的執行個體只要還活著，
+   模組層的 MEM 每輪都更新時間戳就永遠不過期，連把 KV 刪掉都沒用（2026-10-18 實際踩到：
+   刪了 KV、重新部署，進度照樣從 294 接著跳到 342）。 */
+const DATA_VER = 2;
 const K_BARS   = "g2bars";
 const K_STATE  = "g2state";
 /* 平常每 10 分鐘才把 K 線寫回 KV（一天約 144 次，KV 免費一天 1,000 次）。
@@ -165,8 +170,11 @@ let MEM = null;
 async function tick(env){
   const now = Date.now(), nowS = Math.floor(now / 1000);
   let stored;
-  if(MEM && now - MEM.at < 10 * 60000) stored = MEM.bars;
-  else stored = unpack(((await env.STATE.get(K_BARS, "json")) || {}).b || []);
+  if(MEM && MEM.ver === DATA_VER && now - MEM.at < 10 * 60000) stored = MEM.bars;
+  else{
+    const raw = (await env.STATE.get(K_BARS, "json")) || {};
+    stored = raw.v === DATA_VER ? unpack(raw.b || []) : [];
+  }
   const kvLast = MEM ? MEM.kvLast : (stored.length ? stored[stored.length - 1].t : 0);
 
   /* 每一輪都先追最新（1 個請求）。補歷史期間也要追，否則最新端會停在部署那一刻，
@@ -203,10 +211,10 @@ async function tick(env){
   const newestClosed = [...B].reverse().find(b => b.t + TF_MS <= now);
   let saved = kvLast;
   if(newestClosed && (back || newestClosed.t - kvLast >= SAVE_MS)){
-    await env.STATE.put(K_BARS, JSON.stringify({b: pack(B.filter(b => b.t + TF_MS <= now))}));
+    await env.STATE.put(K_BARS, JSON.stringify({v: DATA_VER, b: pack(B.filter(b => b.t + TF_MS <= now))}));
     saved = newestClosed.t;
   }
-  MEM = {bars: B, at: now, kvLast: saved};
+  MEM = {bars: B, at: now, kvLast: saved, ver: DATA_VER};
 
   const done = B.filter(b => b.t + TF_MS <= now);
   if(done.length < NEED)
@@ -277,7 +285,8 @@ export default {
     try{
       if(u.pathname === "/run")  return json(await tick(env));
       if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
-      const B = unpack(((await env.STATE.get(K_BARS, "json")) || {}).b || []);
+      const rawS = (await env.STATE.get(K_BARS, "json")) || {};
+      const B = rawS.v === DATA_VER ? unpack(rawS.b || []) : [];
       return json({strategy: `那斯達克短趨勢・B2：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
         bars: B.length, need: NEED, warmed: B.length >= NEED,
         oldest: B.length ? tw(B[0].t) : null, newest: B.length ? tw(B[B.length - 1].t) : null,
