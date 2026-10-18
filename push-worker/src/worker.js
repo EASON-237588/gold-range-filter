@@ -87,7 +87,14 @@ export async function trades(fromS, toS, depth){
    lo／hi：抓取窗口切到一半的桶不完整，整根丟掉——它在歷史裡已經是完整的（或下一輪會補回來）。 */
 export function aggTrades(tr, lo, hi){
   const out = [];
-  for(const [T, p, q] of tr){
+  /* **一定要先排序**：Gate 的逐筆是「最新在前」的降序，而下面是順著掃、只認「同一根或更新的桶」，
+     沒排序的話每一段只會留下最新那一根（2026-10-18 實測：839 筆逐筆只合成出 1 根 K）。
+     更新紀錄.py 的 gate_trades 最後有一行 sorted()，移植時漏掉了；
+     而本機對帳用的逐筆是 Python 排序後才存檔的，所以對帳全過也照樣沒抓到這個 bug。
+     排序鍵要連價格、數量一起比（對應 Python 對 (時間, 價格, 數量) 這個 tuple 排序）：
+     同一毫秒內有多筆成交時，只排時間的話那根 K 的收盤會取到不同的一筆，實測 11,193 根裡有 103 根對不上
+     （部位不受影響，但對帳要一字不差）。注意這跟台指盤後檔的規則相反——那邊要保留檔案原順序。 */
+  for(const [T, p, q] of tr.slice().sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2])){
     if(!cmeOpen(T)) continue;
     const s = Math.floor(T / TF_MS) * TF_MS;
     if(s < lo || (hi != null && s >= hi)) continue;
@@ -96,6 +103,13 @@ export function aggTrades(tr, lo, hi){
     else if(s === last.t){ last.h = Math.max(last.h, p); last.l = Math.min(last.l, p); last.c = p; last.v += q; }
   }
   return out;
+}
+
+/* 往回找「上一個還在交易時段內的時刻」。休市（週末、每天 17～18 點）時用它一步跳過去，
+   不必每輪半小時慢慢爬。1 分鐘步長、最多往回 4 天；cmeOpen 本身有小時快取，很便宜。 */
+function lastOpen(t){
+  for(let i = 0, x = t; i < 4 * 24 * 60; i++, x -= 60000) if(cmeOpen(x)) return x;
+  return t - 4 * 86400000;
 }
 
 /* 相鄰兩根之間沒成交的桶，用前一根的收盤補平盤 K（成交量 0）。
@@ -150,13 +164,9 @@ let MEM = null;
 
 async function tick(env){
   const now = Date.now(), nowS = Math.floor(now / 1000);
-  let stored, bt;
-  if(MEM && now - MEM.at < 10 * 60000){
-    stored = MEM.bars; bt = MEM.bt;
-  }else{
-    const raw = (await env.STATE.get(K_BARS, "json")) || {};
-    stored = unpack(raw.b || []); bt = raw.bt || 0;
-  }
+  let stored;
+  if(MEM && now - MEM.at < 10 * 60000) stored = MEM.bars;
+  else stored = unpack(((await env.STATE.get(K_BARS, "json")) || {}).b || []);
   const kvLast = MEM ? MEM.kvLast : (stored.length ? stored[stored.length - 1].t : 0);
 
   /* 每一輪都先追最新（1 個請求）。補歷史期間也要追，否則最新端會停在部署那一刻，
@@ -164,39 +174,46 @@ async function tick(env){
      假平盤 K，價格不動會把 EMA 壓平、濾網帶寬縮小，生出假訊號。 */
   const tailFrom = nowS - TAIL_S, tailLo = Math.ceil(tailFrom * 1000 / TF_MS) * TF_MS;
   let B = merge(stored, aggTrades(await trades(tailFrom, nowS), tailLo, null));
-  if(!bt) bt = Math.floor(tailLo / 1000);     // 第一次：從這裡開始往回補
 
-  /* 暖機不足就再往回補一段（bt＝已往回抓到的秒）。
-     休市（週末、每天 17～18 點）那段合不出任何 K，根數不會動，所以一輪內最多連跳 6 段把休市跨過去
-     ——休市段幾乎沒成交，解析很便宜。跨整個週末（約 48 小時）本來要 96 輪，這樣約 16 輪就過去了。
-     進度一定要靠 bt 自己記：拿「最早一根的時間」去推，休市時根數不增、最早一根不動，會原地打轉。 */
+  /* 暖機不足就往回補。
+     **進度不存任何地方**：手上最早那根 K 就是進度，一根都還沒有時用 lastOpen 從交易時段規則算。
+     2026-10-18 踩過的教訓：原本把「已往回抓到哪一秒」記在 KV，但 KV 是最終一致、寫進去最久要一分鐘
+     才讀得到，而 cron 正好每分鐘跑一次 → 下一輪常讀到寫入前的舊值，進度歸零、原地打轉
+     （雲端實測 10:58 → 10:59 → 08:02 → 11:01）。改成從 K 自己推導後就完全不受影響，
+     而且即使讀到舊的 K 也只是重抓同一段（冪等），不會倒退。
+     休市那段用 lastOpen 一步跳過去，跨整個週末只要一輪。 */
   const back = B.length < NEED;
-  let hops = 0;
-  if(back) while(hops < 6){
-    const to = bt, from = to - BACK_S;
+  let hops = 0, dbg = null;
+  if(back) while(hops < 4){
+    const anchor = B.length ? B[0].t : now - TAIL_S * 1000;
+    let toMs = anchor;
+    if(!cmeOpen(toMs - 60000)) toMs = lastOpen(toMs - 60000) + 60000;   // 跳過休市
+    const to = Math.floor(toMs / 1000), from = to - BACK_S;
     const lo = Math.ceil(from * 1000 / TF_MS) * TF_MS;
-    const add = aggTrades(await trades(from, to), lo, to * 1000);
+    const before = B.length;
+    const raw = await trades(from, to);
+    const add = aggTrades(raw, lo, toMs);
     B = merge(B, add);
-    bt = Math.floor(lo / 1000);
     hops++;
-    if(add.length) break;        // 這段有交易時段的 K，收工，下一輪再往回
+    dbg = {seg: `${tw(from * 1000)}→${tw(to * 1000)}`, 逐筆: raw.length, 合成: add.length, 併入後: B.length - before};
+    if(B.length > before) break;      // 這段真的補到東西了，下一輪再往回
   }
 
-  // 存檔判斷要看「KV 裡最後一根」；往回補的時候每輪都存，免得記憶體掉了進度倒退
+  // 存檔判斷要看「KV 裡最後一根」；往回補的時候每輪都存，進度才跟得上
   const newestClosed = [...B].reverse().find(b => b.t + TF_MS <= now);
   let saved = kvLast;
   if(newestClosed && (back || newestClosed.t - kvLast >= SAVE_MS)){
-    await env.STATE.put(K_BARS, JSON.stringify({bt, b: pack(B.filter(b => b.t + TF_MS <= now))}));
+    await env.STATE.put(K_BARS, JSON.stringify({b: pack(B.filter(b => b.t + TF_MS <= now))}));
     saved = newestClosed.t;
   }
-  MEM = {bars: B, at: now, kvLast: saved, bt};
+  MEM = {bars: B, at: now, kvLast: saved};
 
   const done = B.filter(b => b.t + TF_MS <= now);
   if(done.length < NEED)
     return {warming: true, have: done.length, need: NEED,
             pct: Math.round(done.length / NEED * 100) + "%",
-            backTo: bt ? tw(bt * 1000) : null, hops,
-            eta: `約 ${Math.ceil((NEED - done.length) * TF_SEC / BACK_S)} 分鐘（休市時段要另外跨，實際更久）`};
+            oldest: done.length ? tw(done[0].t) : null, hops, dbg,
+            eta: `約 ${Math.ceil((NEED - done.length) * TF_SEC / BACK_S)} 分鐘`};
 
   const {pos} = calcRF(done);
   const cur = pos[pos.length - 1];
@@ -243,7 +260,10 @@ async function tvAlert(env, text){
 const json = o => new Response(JSON.stringify(o, null, 2), {headers: {"content-type": "application/json; charset=utf-8"}});
 
 export default {
-  async scheduled(_e, env, ctx){ ctx.waitUntil(tick(env).catch(e => console.log("錯誤", String(e)))); },
+  async scheduled(_e, env, ctx){
+    // 每輪留一行摘要，這樣 `npx.cmd wrangler tail` 不帶 ADMIN_KEY 也看得到暖機進度與錯誤
+    ctx.waitUntil(tick(env).then(r => console.log(JSON.stringify(r))).catch(e => console.log("錯誤", String(e))));
+  },
   async fetch(req, env){
     const u = new URL(req.url);
     // TradingView 警報走自己的 TV_KEY（警報網址存在 TradingView 上，不要把 ADMIN_KEY 放進去）
@@ -257,11 +277,9 @@ export default {
     try{
       if(u.pathname === "/run")  return json(await tick(env));
       if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
-      const raw = (await env.STATE.get(K_BARS, "json")) || {};
-      const B = unpack(raw.b || []);
+      const B = unpack(((await env.STATE.get(K_BARS, "json")) || {}).b || []);
       return json({strategy: `那斯達克短趨勢・B2：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
         bars: B.length, need: NEED, warmed: B.length >= NEED,
-        backTo: raw.bt ? tw(raw.bt * 1000) : null,
         oldest: B.length ? tw(B[0].t) : null, newest: B.length ? tw(B[B.length - 1].t) : null,
         state: await env.STATE.get(K_STATE, "json"),
         tvLast: await env.STATE.get(K_TV, "json"),
