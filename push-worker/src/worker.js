@@ -1,35 +1,64 @@
 /**
  * LINE「黃金訊號」推播 —— Cloudflare Worker
  *
- * 2026-10-12 起只推一組：那斯達克短趨勢・Gate 版（Gate QQQ_USDT 合約 30 秒 K，Range Filter 200/23，
- * 多空反轉；與指數趨勢儀表板「短趨勢・Gate」那格同一套，算法在 gate_rf.js）。
- * 先前推過的黃金 Range Filter（9/02～10/12）、黃金上方 Donchian（10/12）與電腦端 A-1 代轉都已移除（使用者指定）。
- * 為什麼是 Gate：Binance 整個封鎖 Cloudflare（10/12 實測東京等 8 個機房全 403），A-1 的資料拿不到。
+ * 2026-10-18 起推兩組，走兩條完全不同的路：
  *
- * 每分鐘：抓 Gate 最後 30 根 30 秒 K → 併進記憶的歷史 → 取最近 5,000 根算部位 →
- *        跟「上次通知的方向」不同就推 LINE。
- * KV 免費每天只能寫 1,000 次，所以 K 線每 5 分鐘才存一次（一天約 288 次），狀態只在推播後寫。
- * 只存美國期貨交易時段的 K：Gate 只能回溯約 3.5 天，週末就占 2 天，存全部會在週一被洗光。
+ *   ① 那斯達克 短趨勢・B2（cron 每分鐘自己算）
+ *      Gate QQQ_USDT 合約「逐筆成交」合成 37 秒 K，Range Filter 450/23，多空反轉。
+ *      與指數趨勢儀表板「短趨勢・B2」那格同一套，算法在 gate_rf.js。
+ *      原本推的是 B（30 秒 200/23），2026-10-18 使用者指定「推播只上 B2」，B 不再推。
+ *      為什麼用逐筆：Gate 的原生 K 線間隔只有 1／10／30 秒與 1 分，拼不出 37 秒（37 不是 10 或 30 的倍數）；
+ *      1 秒 K 雖拼得出來但只保留最近一萬根（約 2.8 小時），不夠 B2 暖機要的約 28 小時。
+ *      逐筆可依時間範圍回溯很久、每分鐘只約 31 筆，比 60 根 1 秒 K 還省。
+ *      為什麼不用 Binance：Binance 整個封鎖 Cloudflare（10/12 實測東京等 8 個機房全 403），換機房沒用。
+ *
+ *   ② 台指期・A/B（不自己算，由 TradingView 警報打進來）
+ *      TradingView 版面 848 右上那格（微台連續月 30 秒、取樣 200／倍數 24）跟儀表板吻合度 98.2%、
+ *      平均只差 1.1 分鐘，是六格裡最準的。走這條一次省掉三個坑：換倉（連續月自己換約，不必處理近次月
+ *      約 170 點價差）、資料拼接（期交所盤後逐筆檔＋即時 K）、台指日夜盤與休息時段判斷。
+ *      LINE 要在標頭帶權杖，而 TradingView 警報只能打一個網址、不能自訂標頭，所以警報打進本 worker 的
+ *      /tvalert?k=TV_KEY，由這裡代發 LINE。放在這支而不是台指即時轉接站，是因為 LINE 權杖本來就在這裡，
+ *      不必再多設一份密鑰、也少一個跳點。
+ *      B2 不走這條路：它在 TradingView 上吻合度只有 75.7%，還會多出 10/14 那種一分鐘假翻轉。
+ *
+ * B2 每分鐘做的事：抓 Gate 最近 15 分鐘逐筆 → 合成 37 秒 K → 併進記憶的歷史 → 算部位 →
+ *                 跟「上次通知的方向」不同就推 LINE。
+ * 歷史不足暖機時（剛部署、或 KV 被清掉）改成「往回補」模式：每分鐘往回抓半小時逐筆，
+ * 要補到 2,760 根（約 28.4 小時交易時段）才開始算策略，約一個多小時；中間跨到週末時根數不會增加，
+ * 所以「已往回抓到哪一秒」要自己記（bt），不能拿最早一根的時間去推，否則會卡在週末原地打轉。
+ * KV 免費每天只能寫 1,000 次，所以 K 線平常每 5 分鐘才存一次（一天約 288 次），狀態只在推播後寫。
+ * 只存美國期貨交易時段的 K：週末占 2 天，存全部會在週一被洗光。
  *
  * 端點（有設 ADMIN_KEY 時要帶 ?key=）：
- *   GET /      目前狀態（根數、方向、上次通知）
- *   GET /run   手動跑一次
- *   GET /test  發一則測試訊息
+ *   GET  /        目前狀態（根數、暖機進度、方向、上次通知）
+ *   GET  /run     手動跑一次 B2
+ *   GET  /test    發一則測試訊息
+ *   POST /tvalert?k=TV_KEY   TradingView 警報進來的台指訊號（用自己的 TV_KEY，不是 ADMIN_KEY）
  */
-import {calcRF, cmeOpen, PER, MULT} from "./gate_rf.js";
+import {calcRF, cmeOpen, PER, MULT, TF_SEC, TF_MS} from "./gate_rf.js";
 
 const CONTRACT = "QQQ_USDT";
 const GATE     = "https://api.gateio.ws/api/v4/futures/usdt";
-const KEEP     = 5200;              // 存幾根交易時段 30 秒 K（暖機 1,200 根＋計算 5,000 根）
-const WINDOW   = 5000;
-const K_BARS   = "gbars";
-const K_STATE  = "gstate";
-const SAVE_MS  = 5 * 60000;
+const WARM     = 6 * PER;           // 暖機根數：2,700 根 37 秒 K ≈ 27.8 小時交易時段
+export const NEED = WARM + 60;         // 要算策略至少先有這麼多根
+export const KEEP = WARM + 1300;       /* 存幾根交易時段 37 秒 K。多出來的 1,300 根（約 13 小時）是「有效段」：
+                                          每輪都拿最後 KEEP 根重算，暖機 2,700 根之後才算得出部位。
+                                          有效段內若還沒發生過方向改變，部位會是 0（不表態），worker 對 0 就是不推播；
+                                          真的翻轉時方向一定算得對（本機對帳 10 個翻轉點全對），所以不會錯推也不會漏推。
+                                          原本設 600 根（6 小時），B2 平均一天才翻 1～2 次，過半時間都在不表態，故放寬。 */
+const TAIL_S   = 900;               // 平常每輪往後抓幾秒的逐筆（15 分鐘，約 475 筆）
+const BACK_S   = 1800;              // 暖機不足時每輪往回抓幾秒的逐筆（半小時，約 950 筆）
+const K_BARS   = "g2bars";
+const K_STATE  = "g2state";
+/* 平常每 10 分鐘才把 K 線寫回 KV（一天約 144 次，KV 免費一天 1,000 次）。
+   本機實測一輪的運算：合成 0.05／併進歷史 1.3／算策略 2.0／讀 KV 2.0／寫 KV 3.1 毫秒，
+   最壞（又讀又寫）8.4 毫秒，而免費方案每次只有 10 毫秒——所以刻意把寫入拉疏，
+   降低同一輪又讀又寫撞在一起的機率。往回補歷史時每輪都寫（那時不算策略，省下 2 毫秒）。 */
+const SAVE_MS  = 10 * 60000;
 const DASH     = "https://eason-237588.github.io/index-trend-dashboard/";
 
 const pack   = B => B.map(b => [b.t, b.h, b.l, b.c, b.v]);
 const unpack = A => A.map(a => ({t: a[0], h: a[1], l: a[2], c: a[3], v: a[4]}));
-const gk = k => ({t: k.t * 1000, h: +k.h, l: +k.l, c: +k.c, v: +k.v});
 const tw = t => new Date(t).toLocaleString("zh-TW", {timeZone: "Asia/Taipei", hour12: false,
   month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit"});
 
@@ -38,19 +67,60 @@ async function jget(url, opt){
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
-// 抓 [from, to] 秒之間的 30 秒 K，一頁最多 2,000 根
-async function candles(from, to){
+
+/* Gate 逐筆成交。一頁最多 1,000 筆，滿了就對半切（同 更新紀錄.py 的 gate_trades）。
+   注意：create_time_ms 這個欄位名稱寫毫秒，實際是「秒」帶小數，一律用 create_time × 1000。 */
+export async function trades(fromS, toS, depth){
+  const j = await jget(`${GATE}/trades?contract=${CONTRACT}&limit=1000&from=${fromS}&to=${toS}`);
+  if(j.length >= 1000 && toS - fromS > 10 && (depth || 0) < 6){
+    const m = Math.floor((fromS + toS) / 2);
+    const [a, b] = await Promise.all([trades(fromS, m, (depth || 0) + 1), trades(m, toS, (depth || 0) + 1)]);
+    return a.concat(b);
+  }
+  return j.map(x => [Math.round(parseFloat(x.create_time) * 1000), parseFloat(x.price), Math.abs(parseFloat(x.size))]);
+}
+
+/* 逐筆 → 37 秒 K，切法同 更新紀錄.py 的 bars_G／儀表板的 GTR：
+   桶從 1970 起算（成交時間 / 37 秒 取整）、交易時段用「成交時間」判斷（與 bars_G 一字不差）。
+   這裡「不」補沒成交的空桶，補空桶交給 fillFlat 對整個陣列一次做，兩種做法等價，
+   但這樣增量併資料才不會接錯。
+   lo／hi：抓取窗口切到一半的桶不完整，整根丟掉——它在歷史裡已經是完整的（或下一輪會補回來）。 */
+export function aggTrades(tr, lo, hi){
   const out = [];
-  for(let a = from; a < to && out.length < 12000; a += 30 * 1999){
-    const r = await jget(`${GATE}/candlesticks?contract=${CONTRACT}&interval=30s&from=${a}&to=${Math.min(to, a + 30 * 1999)}`);
-    out.push(...r.map(gk));
+  for(const [T, p, q] of tr){
+    if(!cmeOpen(T)) continue;
+    const s = Math.floor(T / TF_MS) * TF_MS;
+    if(s < lo || (hi != null && s >= hi)) continue;
+    const last = out.length ? out[out.length - 1] : null;
+    if(!last || s > last.t) out.push({t: s, h: p, l: p, c: p, v: q});
+    else if(s === last.t){ last.h = Math.max(last.h, p); last.l = Math.min(last.l, p); last.c = p; last.v += q; }
   }
   return out;
 }
-function merge(old, add){
-  const m = new Map(old.map(b => [b.t, b]));
-  for(const b of add) if(cmeOpen(b.t)) m.set(b.t, b);
-  const B = [...m.values()].sort((a, b) => a.t - b.t);
+
+/* 相鄰兩根之間沒成交的桶，用前一根的收盤補平盤 K（成交量 0）。
+   缺口超過 2 小時不補——那是休市，補了會生出一堆假 K。成交量過濾會讓平盤根不發訊號，與儀表板一致。 */
+export function fillFlat(B){
+  const out = [];
+  for(let i = 0; i < B.length; i++){
+    const b = B[i];
+    if(i){
+      const prev = B[i - 1], gap = b.t - prev.t;
+      if(gap > TF_MS && gap <= 2 * 3600000)
+        for(let x = prev.t + TF_MS; x < b.t; x += TF_MS)
+          if(cmeOpen(x)) out.push({t: x, h: prev.c, l: prev.c, c: prev.c, v: 0});
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+/* 併進歷史：同一個桶後到的覆蓋先到的（重抓時成交量更完整）。
+   先把補出來的平盤根（成交量 0）丟掉再重補，否則平盤根會卡在真資料前面，害補洞算錯缺口。 */
+export function merge(old, add){
+  const m = new Map(old.filter(b => b.v > 0).map(b => [b.t, b]));
+  for(const b of add) m.set(b.t, b);
+  const B = fillFlat([...m.values()].sort((a, b) => a.t - b.t));
   return B.length > KEEP ? B.slice(-KEEP) : B;
 }
 
@@ -64,6 +134,7 @@ async function lineSend(env, text){
     body: JSON.stringify(body)});
   return {ok: r.ok, status: r.status, err: r.ok ? null : await r.text()};
 }
+
 // 那斯達克點數換算：Hyperliquid 那斯達克 100 合約 ÷ QQQ 合約（同儀表板）
 async function ndx(){
   try{
@@ -73,31 +144,60 @@ async function ndx(){
   }catch(e){ return null; }
 }
 
-/* 同一個執行個體連續被叫到時，沿用記憶體裡上一輪的 K 線，省掉讀 KV＋解析 5,000 根 JSON
-   （免費方案每次只有 10 毫秒 CPU，實測不沿用時每輪 7～12 毫秒）。超過 10 分鐘沒更新就回頭讀 KV。 */
+/* 同一個執行個體連續被叫到時，沿用記憶體裡上一輪的 K 線，省掉讀 KV＋解析幾千根 JSON
+   （免費方案每次只有 10 毫秒 CPU）。超過 10 分鐘沒更新就回頭讀 KV。 */
 let MEM = null;
 
 async function tick(env){
   const now = Date.now(), nowS = Math.floor(now / 1000);
-  const stored = MEM && now - MEM.at < 10 * 60000 ? MEM.bars
-               : unpack((await env.STATE.get(K_BARS, "json")) || []);
-  const lastT = stored.length ? stored[stored.length - 1].t : 0;
-  // 斷太久（或第一次）就往回補；平常只抓最後 30 根（15 分鐘）
-  const from = lastT && nowS - lastT / 1000 < 900 ? nowS - 900 : Math.max(nowS - 30 * 9990, Math.floor(lastT / 1000));
-  const B = merge(stored, await candles(from, nowS));
+  let stored, bt;
+  if(MEM && now - MEM.at < 10 * 60000){
+    stored = MEM.bars; bt = MEM.bt;
+  }else{
+    const raw = (await env.STATE.get(K_BARS, "json")) || {};
+    stored = unpack(raw.b || []); bt = raw.bt || 0;
+  }
+  const kvLast = MEM ? MEM.kvLast : (stored.length ? stored[stored.length - 1].t : 0);
 
-  // 存檔判斷要看「KV 裡最後一根」，記憶體沿用時另外記
-  const kvLast = MEM ? MEM.kvLast : lastT;
-  const newestClosed = [...B].reverse().find(b => b.t + 30000 <= now);
+  /* 每一輪都先追最新（1 個請求）。補歷史期間也要追，否則最新端會停在部署那一刻，
+     補完後與最新資料之間裂開一小時左右——那個缺口小於 2 小時，會被 fillFlat 補成近百根
+     假平盤 K，價格不動會把 EMA 壓平、濾網帶寬縮小，生出假訊號。 */
+  const tailFrom = nowS - TAIL_S, tailLo = Math.ceil(tailFrom * 1000 / TF_MS) * TF_MS;
+  let B = merge(stored, aggTrades(await trades(tailFrom, nowS), tailLo, null));
+  if(!bt) bt = Math.floor(tailLo / 1000);     // 第一次：從這裡開始往回補
+
+  /* 暖機不足就再往回補一段（bt＝已往回抓到的秒）。
+     休市（週末、每天 17～18 點）那段合不出任何 K，根數不會動，所以一輪內最多連跳 6 段把休市跨過去
+     ——休市段幾乎沒成交，解析很便宜。跨整個週末（約 48 小時）本來要 96 輪，這樣約 16 輪就過去了。
+     進度一定要靠 bt 自己記：拿「最早一根的時間」去推，休市時根數不增、最早一根不動，會原地打轉。 */
+  const back = B.length < NEED;
+  let hops = 0;
+  if(back) while(hops < 6){
+    const to = bt, from = to - BACK_S;
+    const lo = Math.ceil(from * 1000 / TF_MS) * TF_MS;
+    const add = aggTrades(await trades(from, to), lo, to * 1000);
+    B = merge(B, add);
+    bt = Math.floor(lo / 1000);
+    hops++;
+    if(add.length) break;        // 這段有交易時段的 K，收工，下一輪再往回
+  }
+
+  // 存檔判斷要看「KV 裡最後一根」；往回補的時候每輪都存，免得記憶體掉了進度倒退
+  const newestClosed = [...B].reverse().find(b => b.t + TF_MS <= now);
   let saved = kvLast;
-  if(newestClosed && newestClosed.t - kvLast >= SAVE_MS){
-    await env.STATE.put(K_BARS, JSON.stringify(pack(B.filter(b => b.t + 30000 <= now))));
+  if(newestClosed && (back || newestClosed.t - kvLast >= SAVE_MS)){
+    await env.STATE.put(K_BARS, JSON.stringify({bt, b: pack(B.filter(b => b.t + TF_MS <= now))}));
     saved = newestClosed.t;
   }
-  MEM = {bars: B, at: now, kvLast: saved};
+  MEM = {bars: B, at: now, kvLast: saved, bt};
 
-  const done = B.filter(b => b.t + 30000 <= now).slice(-WINDOW);
-  if(done.length < 6 * PER + 50) return {skipped: "歷史不足", have: done.length};
+  const done = B.filter(b => b.t + TF_MS <= now);
+  if(done.length < NEED)
+    return {warming: true, have: done.length, need: NEED,
+            pct: Math.round(done.length / NEED * 100) + "%",
+            backTo: bt ? tw(bt * 1000) : null, hops,
+            eta: `約 ${Math.ceil((NEED - done.length) * TF_SEC / BACK_S)} 分鐘（休市時段要另外跨，實際更久）`};
+
   const {pos} = calcRF(done);
   const cur = pos[pos.length - 1];
   const st = (await env.STATE.get(K_STATE, "json")) || {notified: null};
@@ -110,12 +210,12 @@ async function tick(env){
 
   let i = pos.length - 1;
   while(i > 0 && pos[i - 1] === cur) i--;
-  const b = done[i], late = now - (b.t + 30000) > 5 * 60000;
+  const b = done[i], late = now - (b.t + TF_MS) > 5 * 60000;
   const nd = await ndx(), q = done[done.length - 1].c;
   const price = nd ? `${Math.round(b.c * nd / q).toLocaleString("en-US")}（QQQ 合約 ${b.c.toFixed(2)}）` : `QQQ 合約 ${b.c.toFixed(2)}`;
   const text =
     `${cur > 0 ? "▲ 翻多" : "▼ 翻空"}${late ? "（延遲通知）" : ""}\n` +
-    `那斯達克 短趨勢・Gate（30 秒 RF ${PER}/${MULT}）\n\n` +
+    `那斯達克 短趨勢・B2（${TF_SEC} 秒 RF ${PER}/${MULT}）\n\n` +
     `訊號時間　${tw(b.t)}\n` +
     `訊號價　　${price}\n\n${DASH}`;
   const sent = await lineSend(env, text);
@@ -124,20 +224,48 @@ async function tick(env){
   return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent};
 }
 
+/* TradingView 警報 → LINE。警報訊息原文（Pine 的 alert() 內容）就是要發出去的字，
+   這裡只加上儀表板網址。同一則內容 3 分鐘內重複進來就不再發（TradingView 偶爾會重送）。 */
+const K_TV = "tvlast";
+async function tvAlert(env, text){
+  const msg = (text || "").trim();
+  if(!msg) return {ok: false, err: "沒有內容"};
+  if(msg.length > 400) return {ok: false, err: "內容過長"};
+  const now = Date.now();
+  const last = (await env.STATE.get(K_TV, "json")) || {};
+  if(last.msg === msg && now - (last.at || 0) < 3 * 60000) return {ok: true, skipped: "3 分鐘內的重複警報"};
+  const sent = await lineSend(env, `${msg}\n\n${DASH}`);
+  if(sent.ok) await env.STATE.put(K_TV, JSON.stringify({msg, at: now}));
+  console.log(JSON.stringify({tv: msg, line: sent}));
+  return {ok: sent.ok, sent: msg, line: sent};
+}
+
 const json = o => new Response(JSON.stringify(o, null, 2), {headers: {"content-type": "application/json; charset=utf-8"}});
 
 export default {
   async scheduled(_e, env, ctx){ ctx.waitUntil(tick(env).catch(e => console.log("錯誤", String(e)))); },
   async fetch(req, env){
     const u = new URL(req.url);
+    // TradingView 警報走自己的 TV_KEY（警報網址存在 TradingView 上，不要把 ADMIN_KEY 放進去）
+    if(u.pathname === "/tvalert"){
+      if(!env.TV_KEY || u.searchParams.get("k") !== env.TV_KEY.trim()) return new Response("Not found", {status: 404});
+      if(req.method !== "POST") return new Response("Not found", {status: 404});
+      try{ return json(await tvAlert(env, await req.text())); }
+      catch(e){ return json({error: String((e && e.message) || e)}); }
+    }
     if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY) return new Response("Not found", {status: 404});
     try{
       if(u.pathname === "/run")  return json(await tick(env));
       if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
-      const B = unpack((await env.STATE.get(K_BARS, "json")) || []);
-      return json({strategy: `那斯達克短趨勢・Gate：${CONTRACT} 30 秒 RF ${PER}/${MULT}`,
-        bars: B.length, newest: B.length ? tw(B[B.length - 1].t) : null,
-        state: await env.STATE.get(K_STATE, "json"), lineConfigured: !!env.LINE_TOKEN});
+      const raw = (await env.STATE.get(K_BARS, "json")) || {};
+      const B = unpack(raw.b || []);
+      return json({strategy: `那斯達克短趨勢・B2：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
+        bars: B.length, need: NEED, warmed: B.length >= NEED,
+        backTo: raw.bt ? tw(raw.bt * 1000) : null,
+        oldest: B.length ? tw(B[0].t) : null, newest: B.length ? tw(B[B.length - 1].t) : null,
+        state: await env.STATE.get(K_STATE, "json"),
+        tvLast: await env.STATE.get(K_TV, "json"),
+        lineConfigured: !!env.LINE_TOKEN, tvConfigured: !!env.TV_KEY});
     }catch(e){ return json({error: String((e && e.message) || e)}); }
   }
 };

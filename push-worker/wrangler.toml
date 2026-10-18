@@ -6,7 +6,7 @@ compatibility_date = "2025-01-01"
 [triggers]
 crons = ["* * * * *"]
 
-# KV：存 11 分 K 歷史與「已推播過的訊號」
+# KV：存 37 秒 K 歷史（g2bars）與推播狀態（g2state、tvlast）
 # 用 npx wrangler kv namespace create STATE 產生 id 後貼進來
 [[kv_namespaces]]
 binding = "STATE"
