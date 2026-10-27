@@ -219,13 +219,18 @@ export function balNow(J, pj, Y, py, prev){
 async function tick(env){
   const now = Date.now(), nowS = Math.floor(now / 1000);
   const fresh = MEM && MEM.ver === DATA_VER && now - MEM.at < 10 * 60000;
+  /* 補歷史期間（任一組不足）每輪都讀 KV，跟記憶體裡的合併：雲端常有兩個執行個體輪流跑，
+     各自只看自己的 MEM 會各補各的、重抓同一段（2026-10-27 部署後實測：16:44 與 17:14 兩份進度交替，速度減半）。
+     補滿後照舊只用 MEM（省讀 KV 與解析）。 */
+  const warmingMem = fresh && SERIES.some(s => (MEM.bars[s.key] || []).length < NEED);
   const S = [];
   for(const s of SERIES){
     let stored;
-    if(fresh) stored = MEM.bars[s.key];
+    if(fresh && !warmingMem) stored = MEM.bars[s.key];
     else{
       const raw = (await env.STATE.get(s.key, "json")) || {};
       stored = raw.v === DATA_VER ? unpack(raw.b || []) : [];
+      if(warmingMem) stored = merge(stored, MEM.bars[s.key] || [], s.ms);
     }
     const kvLast = fresh ? MEM.kvLast[s.key] : (stored.length ? stored[stored.length - 1].t : 0);
     S.push({s, B: stored, kvLast});
