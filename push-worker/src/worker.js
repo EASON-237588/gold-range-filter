@@ -205,6 +205,15 @@ async function pushTest(env){
   const flag = await env.STATE.get("pushtest");
   if(!flag) return null;
   await env.STATE.delete("pushtest");
+  /* 旗標內容是「audio:網址」時改傳音檔到 Telegram（10/27 給使用者存成機器人專屬通知音效：長按音訊 → 存為通知音效） */
+  if(flag.startsWith("audio:")){
+    if(!env.TG_TOKEN || !TGCHAT) return {pushtest: false, err: "Telegram 還沒設定好"};
+    const r = await fetch(`https://api.telegram.org/bot${env.TG_TOKEN.trim()}/sendAudio`, {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({chat_id: TGCHAT, audio: flag.slice(6), title: "期貨趨勢警報音", performer: "期貨趨勢",
+        caption: "長按這則音訊 → 選「存為通知音效」，再到機器人的通知設定選它"})});
+    return {pushtest: r.ok, audio: true, status: r.status, err: r.ok ? null : (await r.text()).slice(0, 200)};
+  }
   const sent = await notify(env, `🔔 推播測試（${tw(Date.now())}）\n收到這則代表 LINE／Telegram 都通。${flag.length < 60 ? "\n" + flag : ""}`);
   return {pushtest: sent.ok, line: sent.line.ok, tg: sent.tg.ok};
 }
