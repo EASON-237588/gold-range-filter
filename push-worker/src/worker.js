@@ -174,6 +174,36 @@ async function lineSend(env, text){
   return {ok: r.ok, status: r.status, err: r.ok ? null : await r.text()};
 }
 
+/* 2026-10-27 晚加 Telegram（使用者問「除了 LINE 還有其他通知方式嗎」後選 Telegram）：機器人金鑰是 TG_TOKEN（secret），
+   聊天室 ID 不必手動填——使用者對自己的機器人傳過一句話後，tgSetup 用 getUpdates 讀出來存進 KV「tgchat」，
+   並立刻傳一則「設定成功」當作驗收。之後每則推播 LINE 與 Telegram 各發一次。 */
+const K_TG = "tgchat";
+let TGCHAT = null;
+async function tgSend(env, text, chat){
+  const id = chat || TGCHAT;
+  if(!env.TG_TOKEN || !id) return {ok: false, err: "Telegram 還沒設定好"};
+  const r = await fetch(`https://api.telegram.org/bot${env.TG_TOKEN.trim()}/sendMessage`, {method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({chat_id: id, text, disable_web_page_preview: true})});
+  return {ok: r.ok, status: r.status, err: r.ok ? null : (await r.text()).slice(0, 200)};
+}
+async function tgSetup(env){
+  if(!env.TG_TOKEN || TGCHAT) return null;
+  const saved = await env.STATE.get(K_TG, "json");
+  if(saved && saved.id){ TGCHAT = saved.id; return null; }
+  const j = await jget(`https://api.telegram.org/bot${env.TG_TOKEN.trim()}/getUpdates?allowed_updates=${encodeURIComponent('["message"]')}`);
+  const ms = (j.result || []).map(u => u.message).filter(m => m && m.chat && m.chat.type === "private");
+  if(!ms.length) return {tg: "還沒找到聊天室：請對機器人按「開始」或傳一句話"};
+  const id = ms[ms.length - 1].chat.id;
+  const sent = await tgSend(env, "✅ Telegram 設定成功\n之後期貨趨勢 B2 翻向時，這裡會跟 LINE 同時收到通知。", id);
+  if(sent.ok){ await env.STATE.put(K_TG, JSON.stringify({id, at: Date.now()})); TGCHAT = id; }
+  return {tg: sent.ok ? "設定成功，已傳測試訊息" : "找到聊天室但傳送失敗", sent};
+}
+async function notify(env, text){
+  const [line, tg] = await Promise.all([lineSend(env, text), tgSend(env, text).catch(e => ({ok: false, err: String(e)}))]);
+  return {ok: line.ok || tg.ok, line, tg};
+}
+
 // 那斯達克點數換算：Hyperliquid 那斯達克 100 合約 ÷ QQQ 合約（同儀表板）
 async function ndx(){
   try{
@@ -267,10 +297,10 @@ async function tick(env){
     `那斯達克 短趨勢・${NAME}（${TF_SEC} 秒 RF ${PER}/${MULT}）\n\n` +
     `訊號時間　${tw(b.t)}\n` +
     `訊號價　　${price}\n\n${DASH}`;
-  const sent = await lineSend(env, text);
+  const sent = await notify(env, text);   // LINE＋Telegram，任一成功就算推過（否則另一邊會每分鐘重推）
   if(sent.ok) await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now, flip: b.t}));
-  console.log(JSON.stringify({push: cur, at: tw(b.t), line: sent}));
-  return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent};
+  console.log(JSON.stringify({push: cur, at: tw(b.t), line: sent.line, tg: sent.tg}));
+  return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent.line, tg: sent.tg};
 }
 
 /* TradingView 警報 → LINE。警報訊息原文（Pine 的 alert() 內容）就是要發出去的字，
@@ -283,10 +313,11 @@ async function tvAlert(env, text){
   const now = Date.now();
   const last = (await env.STATE.get(K_TV, "json")) || {};
   if(last.msg === msg && now - (last.at || 0) < 3 * 60000) return {ok: true, skipped: "3 分鐘內的重複警報"};
-  const sent = await lineSend(env, `${msg}\n\n${DASH}`);
+  await tgSetup(env).catch(() => null);   // TV 警報走 fetch，不一定經過 scheduled，先確保拿得到聊天室 ID
+  const sent = await notify(env, `${msg}\n\n${DASH}`);
   if(sent.ok) await env.STATE.put(K_TV, JSON.stringify({msg, at: now}));
-  console.log(JSON.stringify({tv: msg, line: sent}));
-  return {ok: sent.ok, sent: msg, line: sent};
+  console.log(JSON.stringify({tv: msg, line: sent.line, tg: sent.tg}));
+  return {ok: sent.ok, sent: msg, line: sent.line, tg: sent.tg};
 }
 
 const json = o => new Response(JSON.stringify(o, null, 2), {headers: {"content-type": "application/json; charset=utf-8"}});
@@ -294,7 +325,8 @@ const json = o => new Response(JSON.stringify(o, null, 2), {headers: {"content-t
 export default {
   async scheduled(_e, env, ctx){
     // 每輪留一行摘要，這樣 `npx.cmd wrangler tail` 不帶 ADMIN_KEY 也看得到暖機進度與錯誤
-    ctx.waitUntil(tick(env).then(r => console.log(JSON.stringify(r))).catch(e => console.log("錯誤", String(e))));
+    ctx.waitUntil(tgSetup(env).then(r => r && console.log(JSON.stringify(r))).catch(e => console.log("Telegram 設定錯誤", String(e)))
+      .then(() => tick(env)).then(r => console.log(JSON.stringify(r))).catch(e => console.log("錯誤", String(e))));
   },
   async fetch(req, env){
     const u = new URL(req.url);
@@ -308,7 +340,7 @@ export default {
     if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY) return new Response("Not found", {status: 404});
     try{
       if(u.pathname === "/run")  return json(await tick(env));
-      if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
+      if(u.pathname === "/test"){ await tgSetup(env).catch(() => null); return json(await notify(env, "黃金訊號推播測試\n收到這則就代表設定成功。")); }
       const rawS = (await env.STATE.get(K_BARS, "json")) || {};
       const B = rawS.v === DATA_VER ? unpack(rawS.b || []) : [];
       return json({strategy: `那斯達克短趨勢・${NAME}：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
