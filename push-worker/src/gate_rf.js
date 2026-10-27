@@ -1,11 +1,13 @@
 /**
- * 那斯達克短趨勢・B2：Gate QQQ_USDT 合約逐筆成交合成 37 秒 K，Range Filter 450/23，多空反轉。
+ * 那斯達克短趨勢・乙：Gate QQQ_USDT 合約逐筆成交合成 45 秒 K，Range Filter 576/27，多空反轉。
  * 以下函式逐行照搬 指數趨勢儀表板 index.html（cmeOpen、pineMA、calcRF），兩邊算出來的方向才會一樣。
- * 2026-10-18 由 B（30 秒 200/23）改成 B2（37 秒 450/23，使用者指定推播只上 B2）。
- * 37 秒不是 Gate 的原生間隔（只有 1／10／30 秒與 1 分），一律用逐筆成交合成，切法見 worker.js。
+ * 2026-10-18 由 B（30 秒 200/23）改成 B2（37 秒 450/23）。
+ * 2026-10-27 使用者指定「乙取代 B2」：改成乙（45 秒 576/27，期貨趨勢紀錄代號 Y45）。
+ * 45 秒不是 Gate 的原生間隔（只有 1／10／30 秒與 1 分），一律用逐筆成交合成，切法見 worker.js。
  */
-export const PER = 450, MULT = 23, ATR_LEN = 12, ATR_MULT = 1.5, VOL_LEN = 20;
-export const TF_SEC = 37, TF_MS = TF_SEC * 1000;
+export const PER = 576, MULT = 27, ATR_LEN = 12, ATR_MULT = 1.5, VOL_LEN = 20;
+export const TF_SEC = 45, TF_MS = TF_SEC * 1000;
+export const NAME = "乙";
 
 /* 美國期貨交易時段：美東週日 18:00 開盤、週五 17:00 收盤，每天 17:00～18:00 休息 */
 const ETF = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", weekday:"short", hour:"2-digit", hourCycle:"h23"});

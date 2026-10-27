@@ -35,13 +35,22 @@
  *   GET  /test    發一則測試訊息
  *   POST /tvalert?k=TV_KEY   TradingView 警報進來的台指訊號（用自己的 TV_KEY，不是 ADMIN_KEY）
  */
-import {calcRF, cmeOpen, PER, MULT, TF_SEC, TF_MS} from "./gate_rf.js";
+/* 2026-10-27 起推的是「乙」（45 秒 576/27），取代 B2：上面 ① 的說明照樣適用，只是週期與參數換掉。
+   暖機變成 3,456 根 45 秒 K（約 43 小時交易時段），剛部署時往回補約 90 輪（一個半小時）才開始推。 */
+import {calcRF, cmeOpen, PER, MULT, TF_SEC, TF_MS, NAME} from "./gate_rf.js";
 
 const CONTRACT = "QQQ_USDT";
 const GATE     = "https://api.gateio.ws/api/v4/futures/usdt";
-const WARM     = 6 * PER;           // 暖機根數：2,700 根 37 秒 K ≈ 27.8 小時交易時段
-export const NEED = WARM + 60;         // 要算策略至少先有這麼多根
-export const KEEP = WARM + 1300;       /* 存幾根交易時段 37 秒 K。多出來的 1,300 根（約 13 小時）是「有效段」：
+const WARM     = 6 * PER;           // 暖機根數：乙 3,456 根 45 秒 K ≈ 43.2 小時交易時段（B2 是 2,700 根 37 秒 K）
+/* 乙改存 6,000 根（2026-10-27 本機重播對帳）：拿 10/1～10/27 的 Gate 逐筆，照本程式「每根收盤後只拿最後 KEEP 根重算」
+   一根一根重播，跟紀錄程式從頭算的 24 次翻向比：4,756 根（暖機＋1,300）與 5,000 根都會在 10/13 提早 2～4 小時推「翻多」
+   （視窗太短，濾網的平滑均線取樣 1,151 根還沒收斂）；5,400 根起 24 次全部同一根推出，取 6,000 留餘裕。
+   這台實測 6,000 根：算策略 0.9、解析 KV 0.8、寫 KV 1.3 毫秒。下面原本 B2 的說明（有效段、不表態）照樣適用。 */
+export const KEEP = 6000;
+/* 要補滿到接近 KEEP 才開始算策略（B2 時代是 WARM + 60）：視窗不滿 5,400 根時會像上面那樣提早推。
+   代價是剛部署（或 KV 被清掉）要往回補約 150 輪（約兩個半小時）才開始推。減 5 是因為最後一根常還沒收完。 */
+export const NEED = KEEP - 5;
+/* （B2 時代是 KEEP = WARM + 1300）存幾根交易時段 K。多出來的 1,300 根是「有效段」：
                                           每輪都拿最後 KEEP 根重算，暖機 2,700 根之後才算得出部位。
                                           有效段內若還沒發生過方向改變，部位會是 0（不表態），worker 對 0 就是不推播；
                                           真的翻轉時方向一定算得對（本機對帳 10 個翻轉點全對），所以不會錯推也不會漏推。
@@ -52,9 +61,9 @@ const BACK_S   = 1800;              // 暖機不足時每輪往回抓幾秒的�
    沒有這個的話，改完規則後舊資料會一直被沿用——cron 的執行個體只要還活著，
    模組層的 MEM 每輪都更新時間戳就永遠不過期，連把 KV 刪掉都沒用（2026-10-18 實際踩到：
    刪了 KV、重新部署，進度照樣從 294 接著跳到 342）。 */
-const DATA_VER = 2;
-const K_BARS   = "g2bars";
-const K_STATE  = "g2state";
+const DATA_VER = 3;                 // 3：2026-10-27 B2 → 乙（37 秒 → 45 秒），舊 K 全部作廢重補
+const K_BARS   = "y45bars";            // 乙另用新的鍵，B2 的 g2bars／g2state 留在 KV 不動（要退回 B2 時可直接沿用）
+const K_STATE  = "y45state";
 /* 平常每 10 分鐘才把 K 線寫回 KV（一天約 144 次，KV 免費一天 1,000 次）。
    本機實測一輪的運算：合成 0.05／併進歷史 1.3／算策略 2.0／讀 KV 2.0／寫 KV 3.1 毫秒，
    最壞（又讀又寫）8.4 毫秒，而免費方案每次只有 10 毫秒——所以刻意把寫入拉疏，
@@ -240,7 +249,7 @@ async function tick(env){
   const price = nd ? `${Math.round(b.c * nd / q).toLocaleString("en-US")}（QQQ 合約 ${b.c.toFixed(2)}）` : `QQQ 合約 ${b.c.toFixed(2)}`;
   const text =
     `${cur > 0 ? "▲ 翻多" : "▼ 翻空"}${late ? "（延遲通知）" : ""}\n` +
-    `那斯達克 短趨勢・B2（${TF_SEC} 秒 RF ${PER}/${MULT}）\n\n` +
+    `那斯達克 短趨勢・${NAME}（${TF_SEC} 秒 RF ${PER}/${MULT}）\n\n` +
     `訊號時間　${tw(b.t)}\n` +
     `訊號價　　${price}\n\n${DASH}`;
   const sent = await lineSend(env, text);
@@ -287,7 +296,7 @@ export default {
       if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
       const rawS = (await env.STATE.get(K_BARS, "json")) || {};
       const B = rawS.v === DATA_VER ? unpack(rawS.b || []) : [];
-      return json({strategy: `那斯達克短趨勢・B2：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
+      return json({strategy: `那斯達克短趨勢・${NAME}：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
         bars: B.length, need: NEED, warmed: B.length >= NEED,
         oldest: B.length ? tw(B[0].t) : null, newest: B.length ? tw(B[B.length - 1].t) : null,
         state: await env.STATE.get(K_STATE, "json"),
