@@ -199,6 +199,15 @@ async function tgSetup(env){
   if(sent.ok){ await env.STATE.put(K_TG, JSON.stringify({id, at: Date.now()})); TGCHAT = id; }
   return {tg: sent.ok ? "設定成功，已傳測試訊息" : "找到聊天室但傳送失敗", sent};
 }
+/* 測試推播不必經手 ADMIN_KEY：在 KV 放一個「pushtest」（wrangler kv key put pushtest 任意文字 --remote），
+   下一輪 cron 看到就發一則測試到 LINE＋Telegram，發完刪掉旗標。 */
+async function pushTest(env){
+  const flag = await env.STATE.get("pushtest");
+  if(!flag) return null;
+  await env.STATE.delete("pushtest");
+  const sent = await notify(env, `🔔 推播測試（${tw(Date.now())}）\n收到這則代表 LINE／Telegram 都通。${flag.length < 60 ? "\n" + flag : ""}`);
+  return {pushtest: sent.ok, line: sent.line.ok, tg: sent.tg.ok};
+}
 async function notify(env, text){
   const [line, tg] = await Promise.all([lineSend(env, text), tgSend(env, text).catch(e => ({ok: false, err: String(e)}))]);
   return {ok: line.ok || tg.ok, line, tg};
@@ -326,6 +335,7 @@ export default {
   async scheduled(_e, env, ctx){
     // 每輪留一行摘要，這樣 `npx.cmd wrangler tail` 不帶 ADMIN_KEY 也看得到暖機進度與錯誤
     ctx.waitUntil(tgSetup(env).then(r => r && console.log(JSON.stringify(r))).catch(e => console.log("Telegram 設定錯誤", String(e)))
+      .then(() => pushTest(env)).then(r => r && console.log(JSON.stringify(r))).catch(e => console.log("推播測試錯誤", String(e)))
       .then(() => tick(env)).then(r => console.log(JSON.stringify(r))).catch(e => console.log("錯誤", String(e))));
   },
   async fetch(req, env){
