@@ -5,10 +5,15 @@
  * 2026-10-27 上午使用者指定「乙取代 B2」：改成乙（45 秒 576/27）。
  * 2026-10-27 傍晚使用者說「改」：退回 B2（37 秒 450/23）。乙的參數：576／27／45 秒。
  * 37 秒不是 Gate 的原生間隔（只有 1／10／30 秒與 1 分），一律用逐筆成交合成，切法見 worker.js。
+ * 2026-10-27 晚（HP）使用者指定「平衡板取代 B2」：甲 30 秒 555/31.9 與乙 45 秒 576/27 同向才持有，
+ * 兩組都用下面的 calcRF，取樣與倍數改成參數傳入（不傳時照舊用 B2 的 450/23）。
  */
 export const PER = 450, MULT = 23, ATR_LEN = 12, ATR_MULT = 1.5, VOL_LEN = 20;
 export const TF_SEC = 37, TF_MS = TF_SEC * 1000;
 export const NAME = "B2";
+// 平衡板的兩組（同期貨趨勢 j30、y45 兩格）
+export const J30 = {name: "甲", per: 555, mult: 31.9, tf: 30};
+export const Y45 = {name: "乙", per: 576, mult: 27,   tf: 45};
 
 /* 美國期貨交易時段：美東週日 18:00 開盤、週五 17:00 收盤，每天 17:00～18:00 休息 */
 const ETF = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York", weekday:"short", hour:"2-digit", hourCycle:"h23"});
@@ -64,12 +69,12 @@ function trueRange(B){
 }
 
 /* 回傳每根的部位（1 多／-1 空／0 尚未有訊號） */
-export function calcRF(B){
+export function calcRF(B, per = PER, mult = MULT){
   const n = B.length;
   const src = B.map(b => (b.h + b.l) / 2);
   const diff = src.map((v, i) => i === 0 ? null : Math.abs(v - src[i-1]));
-  const avrng = pineEma(diff, PER);
-  const smrng = pineEma(avrng, PER*2 - 1).map(v => v == null ? null : v * MULT);
+  const avrng = pineEma(diff, per);
+  const smrng = pineEma(avrng, per*2 - 1).map(v => v == null ? null : v * mult);
   const filt = new Array(n).fill(null);
   let prev = null;
   for(let i = 0; i < n; i++){
@@ -102,5 +107,5 @@ export function calcRF(B){
     else if(shortSig && pci === 1) cur = -1;
     pos[i] = cur;
   }
-  return {pos, warm: 6 * PER};
+  return {pos, warm: 6 * per};
 }

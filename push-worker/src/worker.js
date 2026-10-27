@@ -36,12 +36,16 @@
  *   POST /tvalert?k=TV_KEY   TradingView 警報進來的台指訊號（用自己的 TV_KEY，不是 ADMIN_KEY）
  */
 /* 2026-10-27 上午改推「乙」（45 秒 576/27），傍晚使用者又改回 B2（37 秒 450/23）。上面 ① 的說明照樣適用。
-   退回 B2 時視窗維持 6,000 根（不回到舊的 WARM + 1300），理由見 KEEP。 */
-import {calcRF, cmeOpen, PER, MULT, TF_SEC, TF_MS, NAME} from "./gate_rf.js";
+   退回 B2 時視窗維持 6,000 根（不回到舊的 WARM + 1300），理由見 KEEP。
+   2026-10-27 晚（HP）使用者指定「平衡板取代 B2」：同一份逐筆合成甲 30 秒、乙 45 秒兩組 K（各存一個鍵、各 6,000 根），
+   各算 Range Filter（555/31.9、576/27），在甲的 30 秒時間軸上取「已收完的最後一根乙」，同向才持有、分歧或任一空手就空手
+   （同期貨趨勢 recomputeBal）。進多、進空、轉空手都推。B2 的 b2bars／g2state 留在 KV 不刪。 */
+import {calcRF, cmeOpen, J30, Y45} from "./gate_rf.js";
 
 const CONTRACT = "QQQ_USDT";
 const GATE     = "https://api.gateio.ws/api/v4/futures/usdt";
-const WARM     = 6 * PER;           // 暖機根數：B2 2,700 根 37 秒 K ≈ 27.8 小時交易時段（乙是 3,456 根 45 秒 K）
+const SERIES   = [Object.assign({key: "baljbars", ms: J30.tf * 1000}, J30),
+                  Object.assign({key: "balybars", ms: Y45.tf * 1000}, Y45)];
 /* 乙改存 6,000 根（2026-10-27 本機重播對帳）：拿 10/1～10/27 的 Gate 逐筆，照本程式「每根收盤後只拿最後 KEEP 根重算」
    一根一根重播，跟紀錄程式從頭算的 24 次翻向比：4,756 根（暖機＋1,300）與 5,000 根都會在 10/13 提早 2～4 小時推「翻多」
    （視窗太短，濾網的平滑均線取樣 1,151 根還沒收斂）；5,400 根起 24 次全部同一根推出，取 6,000 留餘裕。
@@ -68,9 +72,10 @@ const BACK_S   = 1800;              // 暖機不足時每輪往回抓幾秒的�
    空檔超過 2 小時會被當成休市跳過（K 線少一段），小於 2 小時又會被 fillFlat 補成假平盤 K。
    所以 K 用新鍵 b2bars 從頭補；推播方向沿用 B2 原本的 g2state（暖機期間若已翻向，補滿後會推一則「延遲通知」）。
    乙的 y45bars／y45state 留在 KV，但同樣會過期，要再改回乙也要換新鍵重補。 */
-const DATA_VER = 4;
-const K_BARS   = "b2bars";
-const K_STATE  = "g2state";
+/* 5：2026-10-27 晚 B2 → 平衡板。甲、乙兩組 K 用新鍵 baljbars／balybars 從頭補，方向用新鍵 balstate
+   （第一次算完只記方向不推）。 */
+const DATA_VER = 5;
+const K_STATE  = "balstate";
 /* 平常每 10 分鐘才把 K 線寫回 KV（一天約 144 次，KV 免費一天 1,000 次）。
    本機實測一輪的運算：合成 0.05／併進歷史 1.3／算策略 2.0／讀 KV 2.0／寫 KV 3.1 毫秒，
    最壞（又讀又寫）8.4 毫秒，而免費方案每次只有 10 毫秒——所以刻意把寫入拉疏，
@@ -106,7 +111,7 @@ export async function trades(fromS, toS, depth){
    這裡「不」補沒成交的空桶，補空桶交給 fillFlat 對整個陣列一次做，兩種做法等價，
    但這樣增量併資料才不會接錯。
    lo／hi：抓取窗口切到一半的桶不完整，整根丟掉——它在歷史裡已經是完整的（或下一輪會補回來）。 */
-export function aggTrades(tr, lo, hi){
+export function aggTrades(tr, lo, hi, TF_MS){
   const out = [];
   /* **一定要先排序**：Gate 的逐筆是「最新在前」的降序，而下面是順著掃、只認「同一根或更新的桶」，
      沒排序的話每一段只會留下最新那一根（2026-10-18 實測：839 筆逐筆只合成出 1 根 K）。
@@ -135,7 +140,7 @@ function lastOpen(t){
 
 /* 相鄰兩根之間沒成交的桶，用前一根的收盤補平盤 K（成交量 0）。
    缺口超過 2 小時不補——那是休市，補了會生出一堆假 K。成交量過濾會讓平盤根不發訊號，與儀表板一致。 */
-export function fillFlat(B){
+export function fillFlat(B, TF_MS){
   const out = [];
   for(let i = 0; i < B.length; i++){
     const b = B[i];
@@ -152,10 +157,10 @@ export function fillFlat(B){
 
 /* 併進歷史：同一個桶後到的覆蓋先到的（重抓時成交量更完整）。
    先把補出來的平盤根（成交量 0）丟掉再重補，否則平盤根會卡在真資料前面，害補洞算錯缺口。 */
-export function merge(old, add){
+export function merge(old, add, TF_MS){
   const m = new Map(old.filter(b => b.v > 0).map(b => [b.t, b]));
   for(const b of add) m.set(b.t, b);
-  const B = fillFlat([...m.values()].sort((a, b) => a.t - b.t));
+  const B = fillFlat([...m.values()].sort((a, b) => a.t - b.t), TF_MS);
   return B.length > KEEP ? B.slice(-KEEP) : B;
 }
 
@@ -183,21 +188,57 @@ async function ndx(){
    （免費方案每次只有 10 毫秒 CPU）。超過 10 分鐘沒更新就回頭讀 KV。 */
 let MEM = null;
 
+/* 平衡板部位（同期貨趨勢 recomputeBal）：在甲的時間軸上，取「收盤時間 ≤ 這根甲收盤」的最後一根乙；
+   甲乙都過暖機後，同向就持有該方向，分歧（或任一還沒表態）就空手。回傳每根甲的部位。 */
+export function balPos(J, pj, wj, Y, py, wy){
+  const pos = new Array(J.length).fill(0);
+  let k = -1;
+  for(let i = 0; i < J.length; i++){
+    const t = J[i].t + J30.tf * 1000;
+    while(k + 1 < Y.length && Y[k + 1].t + Y45.tf * 1000 <= t) k++;
+    if(i < wj || k < 0 || k < wy) continue;
+    pos[i] = pj[i] === py[k] ? pj[i] : 0;
+  }
+  return pos;
+}
+
+/* 推播用的「現在」平衡板方向。視窗只有 KEEP 根，某一組在視窗內若一直沒翻向，calcRF 最後一根是 0（不表態），
+   那不是空手——要沿用它上次確定的方向（存在狀態 jd／yd）。B2 時代遇 0 不推所以沒事；平衡板把 0 當分歧會一直推
+   「轉空手」（2026-10-27 逐根重播實測：10/23 起乙不表態，空／空手每分鐘來回，多推 64 次）。
+   回傳 cur：1 多／-1 空／0 分歧空手／null 兩組還沒都確定方向；at：甲或乙最近一次翻到現在方向的那根收盤時間（取較晚者）。 */
+export function balNow(J, pj, Y, py, prev){
+  const lj = pj[pj.length - 1], ly = py[py.length - 1];
+  const jd = lj || prev.jd || 0, yd = ly || prev.yd || 0;
+  const cur = jd && yd ? (jd === yd ? jd : 0) : null;
+  let at = 0;
+  if(lj){ let i = pj.length - 1; while(i > 0 && pj[i - 1] === lj) i--; at = Math.max(at, J[i].t + J30.tf * 1000); }
+  if(ly){ let k = py.length - 1; while(k > 0 && py[k - 1] === ly) k--; at = Math.max(at, Y[k].t + Y45.tf * 1000); }
+  return {cur, jd, yd, at};
+}
+
 async function tick(env){
   const now = Date.now(), nowS = Math.floor(now / 1000);
-  let stored;
-  if(MEM && MEM.ver === DATA_VER && now - MEM.at < 10 * 60000) stored = MEM.bars;
-  else{
-    const raw = (await env.STATE.get(K_BARS, "json")) || {};
-    stored = raw.v === DATA_VER ? unpack(raw.b || []) : [];
+  const fresh = MEM && MEM.ver === DATA_VER && now - MEM.at < 10 * 60000;
+  const S = [];
+  for(const s of SERIES){
+    let stored;
+    if(fresh) stored = MEM.bars[s.key];
+    else{
+      const raw = (await env.STATE.get(s.key, "json")) || {};
+      stored = raw.v === DATA_VER ? unpack(raw.b || []) : [];
+    }
+    const kvLast = fresh ? MEM.kvLast[s.key] : (stored.length ? stored[stored.length - 1].t : 0);
+    S.push({s, B: stored, kvLast});
   }
-  const kvLast = MEM ? MEM.kvLast : (stored.length ? stored[stored.length - 1].t : 0);
 
-  /* 每一輪都先追最新（1 個請求）。補歷史期間也要追，否則最新端會停在部署那一刻，
+  /* 每一輪都先追最新（1 個請求，兩組共用同一份逐筆）。補歷史期間也要追，否則最新端會停在部署那一刻，
      補完後與最新資料之間裂開一小時左右——那個缺口小於 2 小時，會被 fillFlat 補成近百根
      假平盤 K，價格不動會把 EMA 壓平、濾網帶寬縮小，生出假訊號。 */
-  const tailFrom = nowS - TAIL_S, tailLo = Math.ceil(tailFrom * 1000 / TF_MS) * TF_MS;
-  let B = merge(stored, aggTrades(await trades(tailFrom, nowS), tailLo, null));
+  const tailFrom = nowS - TAIL_S, tailTr = await trades(tailFrom, nowS);
+  for(const x of S){
+    const lo = Math.ceil(tailFrom * 1000 / x.s.ms) * x.s.ms;
+    x.B = merge(x.B, aggTrades(tailTr, lo, null, x.s.ms), x.s.ms);
+  }
 
   /* 暖機不足就往回補。
      **進度不存任何地方**：手上最早那根 K 就是進度，一根都還沒有時用 lastOpen 從交易時段規則算。
@@ -206,61 +247,82 @@ async function tick(env){
      （雲端實測 10:58 → 10:59 → 08:02 → 11:01）。改成從 K 自己推導後就完全不受影響，
      而且即使讀到舊的 K 也只是重抓同一段（冪等），不會倒退。
      休市那段用 lastOpen 一步跳過去，跨整個週末只要一輪。 */
-  const back = B.length < NEED;
+  /* 兩組任一不足就往回補。錨點取「還不足的那組」最早那根（乙的 45 秒 K 涵蓋時間較長，通常是乙），
+     抓到的逐筆兩組都併。已經滿的那組多出來的舊 K 會被 merge 切掉，不影響。 */
+  const short = () => S.filter(x => x.B.length < NEED);
+  const back = short().length > 0;
   let hops = 0, dbg = null;
-  if(back) while(hops < 4){
-    const anchor = B.length ? B[0].t : now - TAIL_S * 1000;
-    let toMs = anchor;
+  if(back) while(hops < 4 && short().length){
+    const ref = short().reduce((a, x) => !a || !x.B.length || (a.B.length && x.B[0].t < a.B[0].t) ? x : a, null);
+    let toMs = ref.B.length ? ref.B[0].t : now - TAIL_S * 1000;
     if(!cmeOpen(toMs - 60000)) toMs = lastOpen(toMs - 60000) + 60000;   // 跳過休市
     const to = Math.floor(toMs / 1000), from = to - BACK_S;
-    const lo = Math.ceil(from * 1000 / TF_MS) * TF_MS;
-    const before = B.length;
+    const before = ref.B.length;
     const raw = await trades(from, to);
-    const add = aggTrades(raw, lo, toMs);
-    B = merge(B, add);
+    for(const x of S){
+      const lo = Math.ceil(from * 1000 / x.s.ms) * x.s.ms;
+      x.B = merge(x.B, aggTrades(raw, lo, toMs, x.s.ms), x.s.ms);
+    }
     hops++;
-    dbg = {seg: `${tw(from * 1000)}→${tw(to * 1000)}`, 逐筆: raw.length, 合成: add.length, 併入後: B.length - before};
-    if(B.length > before) break;      // 這段真的補到東西了，下一輪再往回
+    dbg = {seg: `${tw(from * 1000)}→${tw(to * 1000)}`, 逐筆: raw.length, 併入後: ref.B.length - before};
+    if(ref.B.length > before) break;      // 這段真的補到東西了，下一輪再往回
   }
 
-  // 存檔判斷要看「KV 裡最後一根」；往回補的時候每輪都存，進度才跟得上
-  const newestClosed = [...B].reverse().find(b => b.t + TF_MS <= now);
-  let saved = kvLast;
-  if(newestClosed && (back || newestClosed.t - kvLast >= SAVE_MS)){
-    await env.STATE.put(K_BARS, JSON.stringify({v: DATA_VER, b: pack(B.filter(b => b.t + TF_MS <= now))}));
-    saved = newestClosed.t;
+  /* 存檔判斷要看「KV 裡最後一根」；往回補的時候每輪都存（那時不算策略），進度才跟得上。
+     平常兩組都到期時一輪只存一組（存最久沒存的那組），另一組下一輪再存——
+     一組 6,000 根寫 KV 約 1.3 毫秒，兩組再加兩次策略計算會逼近免費方案每次 10 毫秒的上限。 */
+  const due = S.filter(x => { const nc = [...x.B].reverse().find(b => b.t + x.s.ms <= now);
+    x.nc = nc; return nc && (back || nc.t - x.kvLast >= SAVE_MS); });
+  const toSave = back ? due : due.sort((a, b) => a.kvLast - b.kvLast).slice(0, 1);
+  for(const x of toSave){
+    await env.STATE.put(x.s.key, JSON.stringify({v: DATA_VER, b: pack(x.B.filter(b => b.t + x.s.ms <= now))}));
+    x.kvLast = x.nc.t;
   }
-  MEM = {bars: B, at: now, kvLast: saved, ver: DATA_VER};
+  MEM = {bars: Object.fromEntries(S.map(x => [x.s.key, x.B])), at: now,
+         kvLast: Object.fromEntries(S.map(x => [x.s.key, x.kvLast])), ver: DATA_VER};
 
-  const done = B.filter(b => b.t + TF_MS <= now);
-  if(done.length < NEED)
-    return {warming: true, have: done.length, need: NEED,
-            pct: Math.round(done.length / NEED * 100) + "%",
-            oldest: done.length ? tw(done[0].t) : null, hops, dbg,
-            eta: `約 ${Math.ceil((NEED - done.length) * TF_SEC / BACK_S)} 分鐘`};
+  for(const x of S) x.done = x.B.filter(b => b.t + x.s.ms <= now);
+  if(S.some(x => x.done.length < NEED)){
+    const y = S[1];
+    return {warming: true, 甲: S[0].done.length, 乙: y.done.length, need: NEED,
+            pct: Math.round(Math.min(...S.map(x => x.done.length)) / NEED * 100) + "%",
+            oldest: y.done.length ? tw(y.done[0].t) : null, hops, dbg,
+            eta: `約 ${Math.ceil((NEED - Math.min(...S.map(x => x.done.length))) * Y45.tf / BACK_S)} 分鐘`};
+  }
 
-  const {pos} = calcRF(done);
-  const cur = pos[pos.length - 1];
+  const [J, Y] = S.map(x => x.done);
+  const rj = calcRF(J, J30.per, J30.mult), ry = calcRF(Y, Y45.per, Y45.mult);
   const st = (await env.STATE.get(K_STATE, "json")) || {notified: null};
-
-  if(st.notified == null){
-    await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now}));
-    return {ok: true, note: "第一次：只記方向不推", cur};
+  const {cur, jd, yd, at} = balNow(J, rj.pos, Y, ry.pos, st);
+  const keep = {jd, yd};
+  if(cur == null){       // 兩組還沒都確定方向：只把已確定的那組記下來
+    if(jd !== st.jd || yd !== st.yd) await env.STATE.put(K_STATE, JSON.stringify({...st, ...keep}));
+    return {ok: true, note: "甲乙方向還沒都確定", 甲: jd, 乙: yd};
   }
-  if(cur === 0 || cur === st.notified) return {ok: true, cur, bars: done.length};
+  if(st.notified == null){
+    await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now, ...keep}));
+    return {ok: true, note: "第一次：只記方向不推", cur, 甲: jd, 乙: yd};
+  }
+  if(cur === st.notified){
+    if(jd !== st.jd || yd !== st.yd) await env.STATE.put(K_STATE, JSON.stringify({...st, ...keep}));
+    return {ok: true, cur, 甲: jd, 乙: yd};
+  }
 
-  let i = pos.length - 1;
-  while(i > 0 && pos[i - 1] === cur) i--;
-  const b = done[i], late = now - (b.t + TF_MS) > 5 * 60000;
-  const nd = await ndx(), q = done[done.length - 1].c;
+  // 訊號那根＝收盤時間不早於翻向那根的第一根甲（乙收在兩根甲之間時，要等下一根甲收盤才算進去，同 balPos）
+  const b = J.find(x => x.t + J30.tf * 1000 >= at) || J[J.length - 1];
+  const late = now - (b.t + J30.tf * 1000) > 5 * 60000;
+  const pj = jd, py = yd, side = d => d > 0 ? "多" : d < 0 ? "空" : "未定";
+  const nd = await ndx(), q = J[J.length - 1].c;
   const price = nd ? `${Math.round(b.c * nd / q).toLocaleString("en-US")}（QQQ 合約 ${b.c.toFixed(2)}）` : `QQQ 合約 ${b.c.toFixed(2)}`;
+  const head = cur > 0 ? "▲ 進多" : cur < 0 ? "▼ 進空" : `◇ 轉空手（平${side(st.notified)}單）`;
   const text =
-    `${cur > 0 ? "▲ 翻多" : "▼ 翻空"}${late ? "（延遲通知）" : ""}\n` +
-    `那斯達克 短趨勢・${NAME}（${TF_SEC} 秒 RF ${PER}/${MULT}）\n\n` +
+    `${head}${late ? "（延遲通知）" : ""}\n` +
+    `那斯達克 平衡板（甲 30 秒 555/31.9＋乙 45 秒 576/27 同向才持有）\n` +
+    `甲 ${side(pj)}／乙 ${side(py)}\n\n` +
     `訊號時間　${tw(b.t)}\n` +
     `訊號價　　${price}\n\n${DASH}`;
   const sent = await lineSend(env, text);
-  if(sent.ok) await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now, flip: b.t}));
+  if(sent.ok) await env.STATE.put(K_STATE, JSON.stringify({notified: cur, at: now, flip: b.t, ...keep}));
   console.log(JSON.stringify({push: cur, at: tw(b.t), line: sent}));
   return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent};
 }
@@ -301,11 +363,15 @@ export default {
     try{
       if(u.pathname === "/run")  return json(await tick(env));
       if(u.pathname === "/test") return json(await lineSend(env, "黃金訊號推播測試\n收到這則就代表設定成功。"));
-      const rawS = (await env.STATE.get(K_BARS, "json")) || {};
-      const B = rawS.v === DATA_VER ? unpack(rawS.b || []) : [];
-      return json({strategy: `那斯達克短趨勢・${NAME}：${CONTRACT} 逐筆合成 ${TF_SEC} 秒 RF ${PER}/${MULT}`,
-        bars: B.length, need: NEED, warmed: B.length >= NEED,
-        oldest: B.length ? tw(B[0].t) : null, newest: B.length ? tw(B[B.length - 1].t) : null,
+      const info = {};
+      for(const s of SERIES){
+        const rawS = (await env.STATE.get(s.key, "json")) || {};
+        const B = rawS.v === DATA_VER ? unpack(rawS.b || []) : [];
+        info[s.name] = {bars: B.length, warmed: B.length >= NEED,
+          oldest: B.length ? tw(B[0].t) : null, newest: B.length ? tw(B[B.length - 1].t) : null};
+      }
+      return json({strategy: `那斯達克平衡板：${CONTRACT} 逐筆合成 甲 30 秒 RF 555/31.9＋乙 45 秒 RF 576/27，同向才持有`,
+        need: NEED, ...info,
         state: await env.STATE.get(K_STATE, "json"),
         tvLast: await env.STATE.get(K_TV, "json"),
         lineConfigured: !!env.LINE_TOKEN, tvConfigured: !!env.TV_KEY});
