@@ -187,15 +187,19 @@ async function tgSend(env, text, chat){
     body: JSON.stringify({chat_id: id, text, disable_web_page_preview: true})});
   return {ok: r.ok, status: r.status, err: r.ok ? null : (await r.text()).slice(0, 200)};
 }
+/* 2026-10-28 改成群組：群組（負數 ID）優先，有群組就換過去；沒有群組時沿用原本的私訊。 */
 async function tgSetup(env){
-  if(!env.TG_TOKEN || TGCHAT) return null;
+  if(!env.TG_TOKEN || (TGCHAT && TGCHAT < 0)) return null;
   const saved = await env.STATE.get(K_TG, "json");
-  if(saved && saved.id){ TGCHAT = saved.id; return null; }
+  if(saved && saved.id){ TGCHAT = saved.id; if(saved.id < 0) return null; }
   const j = await jget(`https://api.telegram.org/bot${env.TG_TOKEN.trim()}/getUpdates?allowed_updates=${encodeURIComponent('["message"]')}`);
-  const ms = (j.result || []).map(u => u.message).filter(m => m && m.chat && m.chat.type === "private");
-  if(!ms.length) return {tg: "還沒找到聊天室：請對機器人按「開始」或傳一句話"};
-  const id = ms[ms.length - 1].chat.id;
-  const sent = await tgSend(env, "✅ Telegram 設定成功\n之後期貨趨勢 B2 翻向時，這裡會跟 LINE 同時收到通知。", id);
+  const ms = (j.result || []).map(u => u.message).filter(m => m && m.chat);
+  const groups = ms.filter(m => m.chat.type === "group" || m.chat.type === "supergroup");
+  const pick = groups.length ? groups[groups.length - 1] : (saved && saved.id ? null : ms.filter(m => m.chat.type === "private").pop());
+  if(!pick) return saved && saved.id ? null : {tg: "還沒找到聊天室：請在群組裡傳一句話（例如 /start）"};
+  const id = pick.chat.id;
+  if(saved && saved.id === id) return null;
+  const sent = await tgSend(env, "✅ Telegram 設定成功\n之後期貨趨勢 B2 翻向時，這個聊天室會跟 LINE 同時收到通知。", id);
   if(sent.ok){ await env.STATE.put(K_TG, JSON.stringify({id, at: Date.now()})); TGCHAT = id; }
   return {tg: sent.ok ? "設定成功，已傳測試訊息" : "找到聊天室但傳送失敗", sent};
 }
