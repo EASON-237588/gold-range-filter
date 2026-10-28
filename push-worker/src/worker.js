@@ -43,7 +43,7 @@ import {calcRF, cmeOpen, PER, MULT, TF_SEC, TF_MS, NAME} from "./gate_rf.js";
 
 const CONTRACT = "QQQ_USDT";
 const GATE     = "https://api.gateio.ws/api/v4/futures/usdt";
-const WARM     = 6 * PER;           // 暖機根數：B2 2,700 根 37 秒 K ≈ 27.8 小時交易時段（乙是 3,456 根 45 秒 K）
+const WARM     = 6 * PER;           // 暖機根數：GA 1,800 根；B2 2,700 根 37 秒 K ≈ 27.8 小時交易時段（乙是 3,456 根 45 秒 K）
 /* 乙改存 6,000 根（2026-10-27 本機重播對帳）：拿 10/1～10/27 的 Gate 逐筆，照本程式「每根收盤後只拿最後 KEEP 根重算」
    一根一根重播，跟紀錄程式從頭算的 24 次翻向比：4,756 根（暖機＋1,300）與 5,000 根都會在 10/13 提早 2～4 小時推「翻多」
    （視窗太短，濾網的平滑均線取樣 1,151 根還沒收斂）；5,400 根起 24 次全部同一根推出，取 6,000 留餘裕。
@@ -74,7 +74,9 @@ const BACK_S   = 1800;              // 暖機不足時每輪往回抓幾秒的�
    平衡板的 baljbars／balybars／balstate 留在 KV。 */
 const DATA_VER = 6;
 const K_BARS   = "b2bars6";
-const K_STATE  = "g2state";
+/* 2026-10-29 B2 → GA：同樣是 37 秒 K（b2bars6 直接沿用、不必重補）；方向換新鍵 gastate，
+   第一輪只記 GA 目前方向不推（沿用 g2state 會拿 B2 的方向比，一部署就補推一則舊翻向）。B2 的 g2state 留在 KV。 */
+const K_STATE  = "gastate";
 /* 平常每 10 分鐘才把 K 線寫回 KV（一天約 144 次，KV 免費一天 1,000 次）。
    本機實測一輪的運算：合成 0.05／併進歷史 1.3／算策略 2.0／讀 KV 2.0／寫 KV 3.1 毫秒，
    最壞（又讀又寫）8.4 毫秒，而免費方案每次只有 10 毫秒——所以刻意把寫入拉疏，
@@ -199,7 +201,7 @@ async function tgSetup(env){
   if(!pick) return saved && saved.id ? null : {tg: "還沒找到聊天室：請在群組裡傳一句話（例如 /start）"};
   const id = pick.chat.id;
   if(saved && saved.id === id) return null;
-  const sent = await tgSend(env, "✅ Telegram 設定成功\n之後期貨趨勢 B2 翻向時，這個聊天室會跟 LINE 同時收到通知。", id);
+  const sent = await tgSend(env, "✅ Telegram 設定成功\n之後期貨趨勢 GA 翻向時，這個聊天室會跟 LINE 同時收到通知。", id);
   if(sent.ok){ await env.STATE.put(K_TG, JSON.stringify({id, at: Date.now()})); TGCHAT = id; }
   return {tg: sent.ok ? "設定成功，已傳測試訊息" : "找到聊天室但傳送失敗", sent};
 }

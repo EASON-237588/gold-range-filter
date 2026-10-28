@@ -7,10 +7,11 @@
  * 37 秒不是 Gate 的原生間隔（只有 1／10／30 秒與 1 分），一律用逐筆成交合成，切法見 worker.js。
  * 2026-10-27 晚（HP）使用者指定「平衡板取代 B2」：甲 30 秒 555/31.9 與乙 45 秒 576/27 同向才持有，
  * 兩組都用下面的 calcRF，取樣與倍數改成參數傳入（不傳時照舊用 B2 的 450/23）。
+ * 2026-10-29（HP）使用者指定「TG 和 LINE 做趨勢版 GA 警報」：改推 GA（同 37 秒 K，取樣 300、倍數 23；B2 改由 TradingView 849 警報）。
  */
-export const PER = 450, MULT = 23, ATR_LEN = 12, ATR_MULT = 1.5, VOL_LEN = 20;
+export const PER = 300, MULT = 23, ATR_LEN = 12, ATR_MULT = 1.5, VOL_LEN = 20;
 export const TF_SEC = 37, TF_MS = TF_SEC * 1000;
-export const NAME = "B2";
+export const NAME = "GA";
 // 平衡板的兩組（同期貨趨勢 j30、y45 兩格）
 export const J30 = {name: "甲", per: 555, mult: 31.9, tf: 30};
 export const Y45 = {name: "乙", per: 576, mult: 27,   tf: 45};
