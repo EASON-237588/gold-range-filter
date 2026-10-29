@@ -2,9 +2,10 @@ name = "gold-rf-line"
 main = "src/worker.js"
 compatibility_date = "2025-01-01"
 
-# 每分鐘跑一次偵測
+# 每分鐘跑一次偵測。2026-10-29 使用者：「D 甲當主力，所有警報只留 D 甲，其它全部停掉」→ 拿掉排程，GA 推播停止；
+# /tvalert（TradingView 警報轉發 LINE＋Telegram）照樣可用。要恢復 GA 推播就改回 crons = ["* * * * *"] 再部署。
 [triggers]
-crons = ["* * * * *"]
+crons = []
 
 # KV：存 37 秒 K 歷史（g2bars）與推播狀態（g2state、tvlast）
 # 用 npx wrangler kv namespace create STATE 產生 id 後貼進來
