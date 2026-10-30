@@ -73,11 +73,13 @@ const BACK_S   = 1800;              // 暖機不足時每輪往回抓幾秒的�
    乙的 y45bars／y45state 留在 KV，但同樣會過期，要再改回乙也要換新鍵重補。 */
 /* 6：2026-10-27 晚 平衡板 → B2。b2bars 停在平衡板切換那刻，同上理由換新鍵 b2bars6 從頭補，方向照舊沿用 g2state。
    平衡板的 baljbars／balybars／balstate 留在 KV。 */
-const DATA_VER = 6;
-const K_BARS   = "b2bars6";
+/* 7：2026-10-31 GA → 甲 30。K 改成 30 秒，37 秒的 b2bars6 不能用，換新鍵 j30bars 重補；方向換新鍵 j30state
+   （第一輪只記方向不推）。b2bars6／gastate／g2state 留在 KV。 */
+const DATA_VER = 7;
+const K_BARS   = "j30bars";
 /* 2026-10-29 B2 → GA：同樣是 37 秒 K（b2bars6 直接沿用、不必重補）；方向換新鍵 gastate，
    第一輪只記 GA 目前方向不推（沿用 g2state 會拿 B2 的方向比，一部署就補推一則舊翻向）。B2 的 g2state 留在 KV。 */
-const K_STATE  = "gastate";
+const K_STATE  = "j30state";
 /* 平常每 10 分鐘才把 K 線寫回 KV（一天約 144 次，KV 免費一天 1,000 次）。
    本機實測一輪的運算：合成 0.05／併進歷史 1.3／算策略 2.0／讀 KV 2.0／寫 KV 3.1 毫秒，
    最壞（又讀又寫）8.4 毫秒，而免費方案每次只有 10 毫秒——所以刻意把寫入拉疏，
