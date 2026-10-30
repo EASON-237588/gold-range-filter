@@ -34,6 +34,7 @@
  *   GET  /run     手動跑一次 B2
  *   GET  /test    發一則測試訊息
  *   POST /tvalert?k=TV_KEY   TradingView 警報進來的台指訊號（用自己的 TV_KEY，不是 ADMIN_KEY）
+ *   GET  /pushtest           KV 有 pushtest 旗標才發一則測試（不用密碼，沒旗標就不做事；2026-10-30 加）
  */
 /* 2026-10-27 上午改推「乙」（45 秒 576/27），傍晚使用者又改回 B2（37 秒 450/23）。上面 ① 的說明照樣適用。
    退回 B2 時視窗維持 6,000 根（不回到舊的 WARM + 1300），理由見 KEEP。
@@ -361,6 +362,13 @@ export default {
       if(req.method !== "POST") return new Response("Not found", {status: 404});
       try{ return json(await tvAlert(env, await req.text())); }
       catch(e){ return json({error: String((e && e.message) || e)}); }
+    }
+    /* 2026-10-30（公司）：排程關掉後 pushtest 旗標沒人檢查，加這個入口手動觸發。不用密碼也安全：
+       只有用 wrangler（要 Cloudflare 帳號登入）先放了 pushtest 旗標才會發，發完 pushTest() 會刪旗標；沒旗標就什麼都不做。
+       用法：npx.cmd wrangler kv key put pushtest "D甲 TEST" --binding STATE --remote，再打開 /pushtest */
+    if(u.pathname === "/pushtest"){
+      await tgSetup(env).catch(() => null);
+      return json((await pushTest(env)) || {pushtest: false, msg: "沒有測試旗標，不發送"});
     }
     if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY) return new Response("Not found", {status: 404});
     try{
