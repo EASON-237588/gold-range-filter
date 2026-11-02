@@ -306,6 +306,7 @@ async function tick(env){
 
   const {pos} = calcRF(done);
   const cur = pos[pos.length - 1];
+  await reconcileJ30(env, done, pos).catch(() => null);   // 甲30 合計的已實現與進場記錄，每分鐘順便更新
   const st = (await env.STATE.get(K_STATE, "json")) || {notified: null};
 
   if(st.notified == null){
@@ -330,8 +331,39 @@ async function tick(env){
   return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent.line, tg: sent.tg};
 }
 
-/* 甲30 目前部位與浮動點數，給手機小工具用（/j30?key=ADMIN_KEY）。
-   部位用 tick 同一套 K 線與 calcRF；浮動用 Gate 最新成交價，點數換算比例用 Hyperliquid 現價（與推播同一套換算）。 */
+/* 甲30 合計（已實現＋浮動）的狀態，存在 KV 的 j30state。
+   已實現的基準 J30_BASE 是 2026-10-31 04:02 之前所有平倉的合計（從 進出紀錄.csv 算出，31 筆）；
+   之後部位每翻轉一次，tick 或 /j30 就把舊部位平倉加進已實現、記下新進場的換算點數。 */
+const K_J30 = "j30state";
+const J30_BASE = {realized: 2678.76, pos: {side: 1, entryRaw: 693.94, entryNq: 28431, entryT: 1793390520000}};
+
+// 目前這段部位是從哪一根開始的
+function j30Start(pos, cur){
+  let i = pos.length - 1;
+  while(i > 0 && pos[i - 1] === cur) i--;
+  return i;
+}
+
+async function reconcileJ30(env, done, pos){
+  const st = (await env.STATE.get(K_J30, "json")) || J30_BASE;
+  const cur = pos[pos.length - 1];
+  const i = j30Start(pos, cur), b = done[i];
+  const same = st.pos ? (cur !== 0 && cur === st.pos.side && st.pos.entryT === b.t) : cur === 0;
+  if(same) return st;
+  let realized = st.realized;
+  if(st.pos) realized += (b.c / st.pos.entryRaw - 1) * st.pos.side * st.pos.entryNq;   // 舊部位在這根平倉
+  const next = {realized, pos: null};
+  if(cur !== 0){
+    const nd = await ndx();
+    if(!nd) return st;   // 拿不到換算比例就先不記，下一輪再補
+    next.pos = {side: cur, entryRaw: b.c, entryNq: b.c * nd / done[done.length - 1].c, entryT: b.t};
+  }
+  await env.STATE.put(K_J30, JSON.stringify(next));
+  return next;
+}
+
+/* 甲30 合計點數，給手機小工具用（/j30?key=ADMIN_KEY）。
+   部位用 tick 同一套 K 線與 calcRF；已實現與進場換算點數來自 j30state；浮動用 Gate 最新成交價。 */
 async function j30Status(env){
   const now = Date.now();
   const raw = (await env.STATE.get(K_BARS, "json")) || {};
@@ -339,17 +371,16 @@ async function j30Status(env){
   const done = B.filter(b => b.t + TF_MS <= now);
   if(done.length < NEED) return {ok: false, warming: true, have: done.length, need: NEED, at: now};
   const {pos} = calcRF(done);
+  const st = await reconcileJ30(env, done, pos);
   const cur = pos[pos.length - 1];
-  if(cur === 0) return {ok: true, side: "空手", pts: 0, at: now};
-  let i = pos.length - 1;
-  while(i > 0 && pos[i - 1] === cur) i--;
-  const entry = done[i].c, q = done[done.length - 1].c;
-  const [tk, nd] = await Promise.all([jget(`${GATE}/tickers?contract=${CONTRACT}`), ndx()]);
-  const last = +tk[0].last;
-  const ptsQQQ = (last - entry) * cur;
-  const ratio = nd ? nd / q : null;
-  return {ok: true, side: cur > 0 ? "多" : "空", entry: +entry.toFixed(2), entryAt: tw(done[i].t),
-          last, ptsQQQ: +ptsQQQ.toFixed(2), pts: ratio ? +(ptsQQQ * ratio).toFixed(1) : null, at: now};
+  if(cur !== 0 && !st.pos) return {ok: false, warming: true, note: "換算比例取得中", at: now};
+  const realized = +st.realized.toFixed(1);
+  if(!st.pos) return {ok: true, side: "空手", realized, pts: realized, at: now};
+  const p = st.pos;
+  const last = +(await jget(`${GATE}/tickers?contract=${CONTRACT}`))[0].last;
+  const floating = (last / p.entryRaw - 1) * p.side * p.entryNq;
+  return {ok: true, side: p.side > 0 ? "多" : "空", entry: +p.entryRaw.toFixed(2), entryAt: tw(p.entryT),
+          last, realized, floating: +floating.toFixed(1), pts: +(realized + floating).toFixed(1), at: now};
 }
 
 /* TradingView 警報 → LINE。警報訊息原文（Pine 的 alert() 內容）就是要發出去的字，
