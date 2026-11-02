@@ -330,6 +330,28 @@ async function tick(env){
   return {ok: sent.ok, pushed: cur, at: tw(b.t), line: sent.line, tg: sent.tg};
 }
 
+/* 甲30 目前部位與浮動點數，給手機小工具用（/j30?key=ADMIN_KEY）。
+   部位用 tick 同一套 K 線與 calcRF；浮動用 Gate 最新成交價，點數換算比例用 Hyperliquid 現價（與推播同一套換算）。 */
+async function j30Status(env){
+  const now = Date.now();
+  const raw = (await env.STATE.get(K_BARS, "json")) || {};
+  const B = raw.v === DATA_VER ? unpack(raw.b || []) : [];
+  const done = B.filter(b => b.t + TF_MS <= now);
+  if(done.length < NEED) return {ok: false, warming: true, have: done.length, need: NEED, at: now};
+  const {pos} = calcRF(done);
+  const cur = pos[pos.length - 1];
+  if(cur === 0) return {ok: true, side: "空手", pts: 0, at: now};
+  let i = pos.length - 1;
+  while(i > 0 && pos[i - 1] === cur) i--;
+  const entry = done[i].c, q = done[done.length - 1].c;
+  const [tk, nd] = await Promise.all([jget(`${GATE}/tickers?contract=${CONTRACT}`), ndx()]);
+  const last = +tk[0].last;
+  const ptsQQQ = (last - entry) * cur;
+  const ratio = nd ? nd / q : null;
+  return {ok: true, side: cur > 0 ? "多" : "空", entry: +entry.toFixed(2), entryAt: tw(done[i].t),
+          last, ptsQQQ: +ptsQQQ.toFixed(2), pts: ratio ? +(ptsQQQ * ratio).toFixed(1) : null, at: now};
+}
+
 /* TradingView 警報 → LINE。警報訊息原文（Pine 的 alert() 內容）就是要發出去的字，
    這裡只加上儀表板網址。同一則內容 3 分鐘內重複進來就不再發（TradingView 偶爾會重送）。 */
 const K_TV = "tvlast";
@@ -375,6 +397,7 @@ export default {
     if(env.ADMIN_KEY && u.searchParams.get("key") !== env.ADMIN_KEY) return new Response("Not found", {status: 404});
     try{
       if(u.pathname === "/run")  return json(await tick(env));
+      if(u.pathname === "/j30")  return json(await j30Status(env));
       if(u.pathname === "/test"){ await tgSetup(env).catch(() => null); return json(await notify(env, "黃金訊號推播測試\n收到這則就代表設定成功。")); }
       const rawS = (await env.STATE.get(K_BARS, "json")) || {};
       const B = rawS.v === DATA_VER ? unpack(rawS.b || []) : [];
